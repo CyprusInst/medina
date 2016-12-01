@@ -8,8 +8,10 @@
 #             Theodoros Christoudias - christoudias@cyi.ac.cy
 #             Giannis Ashiotis
 #
-# Version 0.1 Alpha - 26 Oct 2016
-#   - Initial release
+# Version 1.1: 26 Nov 2016 - Added sanity checks for multi-file configurations.
+#                            Performance improvements
+#
+# Version 1.0: 26 Oct 2016 - Initial release
 #
 #########################################################################################################
 
@@ -915,7 +917,7 @@ pass
 
 def print_warning():
     print '\033[1m' + "\n##################################################################" 
-    print   "## WARNING!! Output file NOT MEANT FOR PRODUCATION SIMULATIONS! ##" 
+    print   "## WARNING!! ALPHA VERSION ! PLEASE REPORT TO PACKAGE MAINTAINERS ANY BUGS OR UNEXPECTED BEHAVIOUR.\n"
     print   "##################################################################\n" 
     print '\033[0m'
 pass
@@ -954,6 +956,20 @@ if ( os.path.isfile("../smcl/messy_mecca_kpp.f90") == False             or
     print "--> Run the script at ./messy/util directory of messy. \n"
     print "Exiting... \n"
     exit(-1)
+
+
+
+
+# Check if kpp created the multiple files version.
+if ( os.path.isfile("messy_mecca_kpp_global.f90") == True             and
+     os.path.isfile("messy_mecca_kpp_jacobian.f90") == True
+     ):
+    print "Can't convert multiple files version.\n"
+    print "--> Contact the authors for support with the test case.\n"
+    print "Exiting... \n"
+    exit(-1)
+
+ 
 
 
 ###############################################
