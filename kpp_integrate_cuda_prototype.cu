@@ -107,6 +107,23 @@ static inline void gpuAssert(cudaError_t code, const char *file, int line, bool 
 #define gpuErrchk(ans) ans
 #endif
 
+/** prefetches into L1 cache */
+__device__ inline void prefetch_gl1(const void *p) {
+        asm("prefetch.global.L1 [%0];": :"l"(p));
+}
+__device__ inline void prefetch_ll1(const void *p) {
+        asm("prefetch.local.L1 [%0];": :"l"(p));
+}
+
+/** prefetches into L2 cache */
+__device__ inline void prefetch_gl2(const void *p) {
+        asm("prefetch.global.L2 [%0];": :"l"(p));
+}
+__device__ inline void prefetch_ll2(const void *p) {
+        asm("prefetch.local.L2 [%0];": :"l"(p));
+}
+
+
 /* This runs on CPU */
 double machine_eps_flt()
 {
@@ -149,6 +166,14 @@ __device__ double ros_ErrorNorm(double *var, double * __restrict__ varNew, doubl
     err = ZERO;
 
     if (vectorTol){
+        for (int i=0;i<NVAR - 16;i+=16){
+            prefetch_ll1(&varErr[i]);
+            prefetch_ll1(&absTol[i]);
+            prefetch_ll1(&relTol[i]);
+            prefetch_ll1(&var[i]);
+            prefetch_ll1(&varNew[i]);
+        }
+
         for (int i=0; i<NVAR; i++)
         {
             varMax = fmax(fabs(var[i]),fabs(varNew[i]));
@@ -158,6 +183,12 @@ __device__ double ros_ErrorNorm(double *var, double * __restrict__ varNew, doubl
         }
         err  = sqrt((double) err/NVAR);
     }else{
+        for (int i=0;i<NVAR - 16;i+=16){
+            prefetch_ll1(&varErr[i]);
+            prefetch_ll1(&var[i]);
+            prefetch_ll1(&varNew[i]);
+        }
+
         for (int i=0; i<NVAR; i++)
         {
             varMax = fmax(fabs(var[i]),fabs(varNew[i]));
@@ -177,6 +208,12 @@ __device__ double ros_ErrorNorm(double *var, double * __restrict__ varNew, doubl
 
 __device__ void ros_Solve(double *Ghimj, double *K, int &Nsol, int istage,  int ros_S)
 {
+
+    #pragma unroll 4 
+    for (int i=0;i<LU_NONZERO-16;i+=16){
+        prefetch_ll1(&Ghimj[i]);
+    }
+
     kppSolve(Ghimj, K, istage, ros_S);
     Nsol++;
 }
@@ -504,7 +541,9 @@ __device__ const  ros_t ros[5] = {
 __device__ double rconst_local[MAX_VL_GLO*NREACT];
 
 
-__global__ void Rosenbrock(double *conc, double Tstart, double Tend, double *rstatus, int *istatus,
+__global__ 
+__launch_bounds__(2*BLOCKSIZE,4)
+void Rosenbrock(double *conc, double Tstart, double Tend, double *rstatus, int *istatus,
                 // values calculated from icntrl and rcntrl at host
                 int autonomous, int vectorTol, int UplimTol, int method, int Max_no_steps,
                 double Hmin, double Hmax, double Hstart, double FacMin, double FacMax, double FacRej, double FacSafe, double roundoff,

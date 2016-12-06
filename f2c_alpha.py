@@ -883,7 +883,7 @@ def add_cuda_compilation(file_specific,file_makefile):
 
     file_makefile.seek(0)    
     out = "\nmessy_mecca_kpp_acc.o: messy_mecca_kpp_acc.cu specific.mk \n\
-\tnvcc  -v --maxrregcount=128  --ptxas-options=-v   --ftz=false --prec-div=true --prec-sqrt=true --fmad=false    -O3  -g   -c  $<"
+\tnvcc  -v  --ptxas-options=-v   --ftz=false --prec-div=true --prec-sqrt=true --fmad=false    -O3  -g   -c  $<"
     file_specific.write(out)
 
 
