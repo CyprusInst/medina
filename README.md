@@ -21,7 +21,7 @@ There are two files required to enable using the GPUs:
 The files have to be available in the messy/util directory. 
 No additional changes are required. 
 
-Note: MESSy has to be linked with the `-lcudart` flag. 
+Note: MESSy has to be linked with the `-lcudart` and `-lstdc++` flags. 
 For example, you can append it to the `SPEC_NETCDF_LIB` variable 
 in the configuration file (under `config/mh-XXXX`).
 
