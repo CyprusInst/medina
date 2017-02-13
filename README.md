@@ -52,14 +52,10 @@ dependent on the number of species and reaction constants in the MECCA mechanism
 The number of GPUs per node and VRAM memory available in each GPU dictates the
 total number of CPU cores that can run simultaneously.
 
-Warning: When running multiple CPU processes per GPU, if
-memory is not enough the CUDA runtime will fail silently - without any
-error. A solution in that case is to use the Multi-process service provided
-by NVIDIA as an alternative.
+Warning: When running multiple CPU processes per GPU, if memory is not enough
+the CUDA runtime will fail silently - without any error. A solution in that
+case is to use the Multi-process service provided by NVIDIA as an alternative.
 
-During experiments with an engineering sample of the next generation 
-NVIDIA Pascal architecture, the source application will fail due to 
-large local memory requirements. Transforming runtime GPU local access to global 
-solves the problem, at a performance cost.
+No issues reported with the latest generation of NVIDIA Pascal architectures.
 
 *EOF*
