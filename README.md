@@ -16,7 +16,7 @@ Hardware: CUDA compatible GPU.
 ## 2. Installation:
 
 There are two files required to enable using the GPUs: 
-`f2c\_alpha.py`  and `kpp\_integrate\_cuda\_prototype.cu`. 
+`f2c_alpha.py`  and `kpp_integrate_cuda_prototype.cu`. 
 
 The files have to be available in the messy/util directory. 
 No additional changes are required. 
@@ -54,7 +54,7 @@ total number of CPU cores that can run simultaneously.
 
 Warning: When running multiple CPU processes per GPU, if memory is not enough
 the CUDA runtime will fail silently - without any error. A solution in that
-case is to use the Multi-process service provided by NVIDIA as an alternative.
+case is to use the Multi-process service (MPS) provided by NVIDIA as an alternative.
 
 No issues reported with the latest generation of NVIDIA Pascal architectures.
 
