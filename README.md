@@ -1,11 +1,11 @@
 # MECCA - KPP Fortran to CUDA source-to-source pre-processor
 
-** Disclaimer: This software is in alpha-test mode, 
+*Disclaimer: This software is in alpha-test mode, 
 equivalent to the MESSy red traffic light status.
 No unexpected behaviour was observed under testing, and users are 
 invited to test with their model setup. However, no express guarantee
 is provided for production simulations. 
-For assistance or to report problems please contact the maintainers:
+For assistance or to report problems please contact the maintainers:*
 christoudias@cyi.ac.cy; m.alvanos@cyi.ac.cy
  
 ## 1. Requirements:
@@ -31,14 +31,13 @@ You have to enter the ./messy/util directory to execute the
 preprocessor, by running "`python f2c_alpha.py`". The preprocessor expects
 the following files to be in place:
 
-* messy/smcl/messy_mecca_kpp.f90
-* messy/smcl/messy_cmn_photol_mem.f90
-* messy/smcl/messy_main_constants_mem.f90
-* messy/util/kpp_integrate_cuda_prototype.cu
-* messy/smcl/specific.mk
-* messy/smcl/Makefile.m
+* `messy/smcl/messy_mecca_kpp.f90`
+* `messy/smcl/messy_cmn_photol_mem.f90`
+* `messy/smcl/messy_main_constants_mem.f90`
+* `messy/util/kpp_integrate_cuda_prototype.cu`
+* `messy/smcl/specific.mk`
+* `messy/smcl/Makefile.m`
  
-
 If any of these files is missing or not configured as in the MESSy release,
 the preprocessor will stop with an error message.
 
@@ -58,4 +57,4 @@ case is to use the Multi-process service (MPS) provided by NVIDIA as an alternat
 
 No issues reported with the latest generation of NVIDIA Pascal architectures.
 
-*EOF*
+**EOF**
