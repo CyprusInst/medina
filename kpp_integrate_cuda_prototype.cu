@@ -109,18 +109,26 @@ static inline void gpuAssert(cudaError_t code, const char *file, int line, bool 
 
 /** prefetches into L1 cache */
 __device__ inline void prefetch_gl1(const void *p) {
+#if __CUDA_ARCH__ <= 300
         asm("prefetch.global.L1 [%0];": :"l"(p));
+#endif
 }
 __device__ inline void prefetch_ll1(const void *p) {
+#if __CUDA_ARCH__ <= 300
         asm("prefetch.local.L1 [%0];": :"l"(p));
+#endif
 }
 
 /** prefetches into L2 cache */
 __device__ inline void prefetch_gl2(const void *p) {
+#if __CUDA_ARCH__ <= 300
         asm("prefetch.global.L2 [%0];": :"l"(p));
+#endif
 }
 __device__ inline void prefetch_ll2(const void *p) {
+#if __CUDA_ARCH__ <= 300
         asm("prefetch.local.L2 [%0];": :"l"(p));
+#endif
 }
 
 
