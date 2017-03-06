@@ -92,6 +92,18 @@
 
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 
+
+
+#if __CUDA_ARCH__ >= 350
+#define _LDG(x)  (__ldg( &(x) ) )
+#else
+#define _LDG(x)  (x)
+#endif
+
+// The ros kernel only needs to read the data, 
+// so store them in the read only cache if possible
+#define rconst(i,j) _LDG( rconst[(j)*(VL_GLO)+(i)] )
+
 static inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
 {
    if (code != cudaSuccess) 
@@ -270,7 +282,7 @@ __device__ int ros_Integrator(double * __restrict__ var, double * __restrict__ f
         //  Status parameters
         int &Nfun, int &Njac, int &Nstp, int &Nacc, int &Nrej, int &Ndec, int &Nsol, int &Nsng,
         //  cuda global mem buffers              
-        double *rconst,  const double * __restrict__ absTol, const double * __restrict__ relTol, double * __restrict__ varNew, double * __restrict__ Fcn0, 
+        const double *rconst,  const double * __restrict__ absTol, const double * __restrict__ relTol, double * __restrict__ varNew, double * __restrict__ Fcn0, 
         double * __restrict__ K, double * __restrict__ dFdT, double * __restrict__ jac0, double * __restrict__ Ghimj, double * __restrict__ varErr,
         // VL_GLO
         int VL_GLO)
@@ -713,13 +725,14 @@ __device__ double k_3rd_iupac(double temp, double cair, double k0_300K, double n
 }
 
 
-/* Initialize rconst local ? */
+/* Initialize rconst local  */
 
-/*
- * Optimization TODO: these are  constants.
- * Can we replace in place the values of rconst?
- *
- */
+
+#if __CUDA_ARCH__ >= 350
+#undef rconst
+#define rconst(i,j)  rconst[(j)*(VL_GLO)+(i)]
+#endif
+
 =#=#=#=#=#=#=#=#=#=#=update_rconst=#=#=#=#=#=#=#=#=#=#=
 
                                                         // no int8 in CUDA :(
