@@ -962,9 +962,9 @@ if ( os.path.isfile("../smcl/messy_mecca_kpp.f90") == False             or
 
 
 # Check if kpp created vector length chemistry
-if '= C(1:VL,:)' in open("messy_mecca_kpp.f90").read():
+if '= C(1:VL,:)' in open("../smcl/messy_mecca_kpp.f90").read():
     print "Can't convert vectorized version of file."
-    print "--> Change the rosenbrock_vec to reosenbrock_mz in the conf file of chemistry. \n"
+    print "--> Change the rosenbrock_vec to reosenbrock_mz in the conf file.\n"
     print "Exiting... \n"
     vectorized = True
     exit(-1)
