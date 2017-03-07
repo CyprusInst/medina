@@ -935,6 +935,7 @@ pass
 # Set variables for checking
 multifile = False
 vectorize = False
+indirect  = False
 
 
 # Print generic information - header
@@ -959,6 +960,14 @@ if ( os.path.isfile("../smcl/messy_mecca_kpp.f90") == False             or
     print "Exiting... \n"
     exit(-1)
 
+# Check if kpp created indirect indexing
+if 'LU_CROW(k+1)' in open("../smcl/messy_mecca_kpp.f90").read():
+    print "Can't convert indirect indexing of file."
+    print "--> Change the decomp in the conf file.\n"
+    print "Exiting... \n"
+    indirect = True
+    exit(-1)
+
 
 
 # Check if kpp created vector length chemistry
@@ -975,8 +984,9 @@ if ( os.path.isfile("messy_mecca_kpp_global.f90") == True             and
      os.path.isfile("messy_mecca_kpp_jacobian.f90") == True
      ):
     print "Can't convert multiple files version.\n"
-    print "--> Contact the authors for support with the test case.\n"
+    print "--> Contact the authors for support with the test case or run with kp4.\n"
     print "Exiting... \n"
+    multifile = True
     exit(-1)
 
  
