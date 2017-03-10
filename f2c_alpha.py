@@ -74,17 +74,17 @@ def find_subroutines(file_in, subroutine_names):
         while True:  
             if lines == []:
                 break
-            line = lines.pop()
-            if ("subroutine "+subroutine in line.lower()+"("):
+            line = lines.pop().lower()
+            if ( (("subroutine "+subroutine + " ") in line.lower()) or (("subroutine "+subroutine + "(") in line.lower())  ):
                 while True:
                     if lines == []:
                         break
                     line = lines.pop()
-                    if ("subroutine "+subroutine in line.lower()):
+                    if ( ("subroutine "+subroutine) in line.lower()):
                         break
                     source.append(line)
                 break
-        subroutines[subroutine] = source
+        subroutines[subroutine.strip()] = source
     return subroutines
 
 def decapitalize_vars(source,keys):
@@ -274,10 +274,12 @@ def fix_indices(source,keys):
                         extra = var[2]+","
                     else:
                         raise ValueError
-                    if  ((line[index+len(var[0])+1:line.find(")",index)]).isdigit()):
+                    if  ((line[index+len(var[0])+1:line.find(")",index)]).strip().isdigit()):
                         line = line[:index]+var[1]+"(index,"+extra+str(int(line[index+len(var[0])+1:line.find(")",index)])-1)+line[line.find(")",index):].replace(")=",") =")
                     else:
-                        print "Value error"
+
+                        print "Value error : "+ str(line[index+len(var[0])+1:line.find(")",index)])
+                        raise ValueError
                         
                     index = index + len(var[1])+1
         processed.append(line.strip())
@@ -510,6 +512,7 @@ def find_LU_DIAG(file_in, NVAR):
         if "lu_diag" in source[line_num].lower():
             the_line = line_num
             break
+
     lu_diag = []
     for line_num in range(the_line,len(source)):
         lu_diag.append(source[line_num])
@@ -984,12 +987,26 @@ if ( os.path.isfile("messy_mecca_kpp_global.f90") == True             and
      os.path.isfile("messy_mecca_kpp_jacobian.f90") == True
      ):
     print "Can't convert multiple files version.\n"
-    print "--> Contact the authors for support with the test case or run with kp4.\n"
-    print "Exiting... \n"
+    print "Multifile version detected!"
     multifile = True
-    exit(-1)
 
  
+
+
+
+
+if (multifile == True):
+    file_messy_mecca_kpp = open("messy_mecca_kpp_linearalgebra.f90","r")
+    subroutines = find_subroutines(file_messy_mecca_kpp, ["KppDecomp","KppDecompCmplx"])
+    if 'LU_CROW(k+1)' in subroutines["kppdecomp"]:
+        print "Can't convert multiple files with indirect indexing.\n"
+        print "--> Change the decomp in the conf file.\n"
+        print "--> Contact the authors for support.\n"
+        print "Exiting... \n"
+
+
+
+
 
 
 ###############################################
@@ -1015,8 +1032,32 @@ file_makefile = open("../smcl/Makefile.m","r+")
 print "==> Step 1: Detect subroutines in the file."
 
 subroutine_names = ["ros_PrepareMatrix","kppSolve","kppDecomp","Jac_sp","Fun","update_rconst"]
-subroutines = find_subroutines(file_messy_mecca_kpp, subroutine_names)
+
+subroutines = {}
 source_cuda = {}
+
+# if multiple files then we have to extract the functions from multiple files
+if (multifile == True):
+    file_messy = open("messy_mecca_kpp_linearalgebra.f90","r")
+    subroutines1 = find_subroutines(file_messy, ["KppSolve","kppDecomp"])
+
+    file_messy = open("messy_mecca_kpp_integrator.f90","r")
+    subroutines2 = find_subroutines(file_messy, ["ros_PrepareMatrix"])
+
+    file_messy = open("messy_mecca_kpp_jacobian.f90","r")
+    subroutines3 = find_subroutines(file_messy,  ["Jac_SP"])
+
+    file_messy = open("messy_mecca_kpp_function.f90","r")
+    subroutines4 = find_subroutines(file_messy, ["Fun"])
+
+    file_messy = open("messy_mecca_kpp_rates.f90","r")
+    subroutines5 = find_subroutines(file_messy, ["Update_RCONST"])
+
+    subroutines = dict(  subroutines1.items() + subroutines2.items() + subroutines3.items() + subroutines4.items() + subroutines5.items()  )
+
+else:
+    subroutines = find_subroutines(file_messy_mecca_kpp, subroutine_names)
+
 
             
 
@@ -1025,13 +1066,26 @@ source_cuda = {}
 print "\n==> Step 2: Replacing variables."
 
 source_cuda["defines_vars_1"] = generate_define_vars(file_messy_main_constants_mem,["R_gas","atm2Pa","N_A"])
-source_cuda["defines_vars_2"] = generate_define_vars(file_messy_mecca_kpp,["NSPEC","NVAR","NFIX","NREACT","LU_NONZERO","NBSIZE"])
-source_cuda["defines_vars_2"].append(generate_define_NBSIZE(subroutines["jac_sp"]))
 source_cuda["defines_ind_1"] = generate_define_indices_one_line(file_messy_cmn_photol_mem,"ip")
-source_cuda["defines_ind_2"] = generate_define_indices_many_lines(file_messy_mecca_kpp,"ind")
-source_cuda["defines_ind_3"] = generate_define_indices_one_line(file_messy_mecca_kpp,"ihs")
 
-source_cuda["defines_ind_4"] = generate_define_indices_one_line(file_messy_mecca_kpp,"iht")
+
+
+
+if (multifile == True):
+    file_messy_mecca_kpp_global = open("messy_mecca_kpp_global.f90","r")
+    file_messy_mecca_kpp_parameters = open("messy_mecca_kpp_parameters.f90","r")
+    source_cuda["defines_vars_2"] = generate_define_vars(file_messy_mecca_kpp_parameters,["NSPEC","NVAR","NFIX","NREACT","LU_NONZERO","NBSIZE"])
+    source_cuda["defines_vars_2"].append(generate_define_NBSIZE(subroutines["jac_sp"]))
+    source_cuda["defines_ind_2"] = generate_define_indices_many_lines(file_messy_mecca_kpp_parameters,"ind")
+    source_cuda["defines_ind_3"] = generate_define_indices_one_line(file_messy_mecca_kpp_global,"ihs")
+    source_cuda["defines_ind_4"] = generate_define_indices_one_line(file_messy_mecca_kpp_global,"iht")
+else:
+    source_cuda["defines_vars_2"] = generate_define_vars(file_messy_mecca_kpp,["NSPEC","NVAR","NFIX","NREACT","LU_NONZERO","NBSIZE"])
+    source_cuda["defines_vars_2"].append(generate_define_NBSIZE(subroutines["jac_sp"]))
+    source_cuda["defines_ind_2"] = generate_define_indices_many_lines(file_messy_mecca_kpp,"ind")
+    source_cuda["defines_ind_3"] = generate_define_indices_one_line(file_messy_mecca_kpp,"ihs")
+    source_cuda["defines_ind_4"] = generate_define_indices_one_line(file_messy_mecca_kpp,"iht")
+
 
 # read the values 
 NSPEC = int(source_cuda["defines_vars_2"][0].split(" ")[2].strip())
@@ -1049,6 +1103,17 @@ source = remove_comments(source)
 source = strip_and_unroll_lines(source)
 source = fix_power_op(source)
 source = decapitalize_vars(source,["rconst","jx","khet_st","khet_tr","cair","press","temp","exp","log","max","min"])
+
+# These are fixes with multifile: jx and khet are 2d
+if (multifile == True):
+    for i in range(len(source)):
+        source[i] = source[i].replace("USE messy_main_constants_mem","")
+        source[i] = source[i].replace("USE messy_cmn_photol_mem","k = is")
+        source[i] = source[i].replace("jx(","jx(k,")
+        source[i] = source[i].replace("khet_st(","khet_st(k,")
+        source[i] = source[i].replace("khet_tr(","khet_tr(k,")
+
+
 source = rconst_preprocessor_1(source)
 rconst_ops,rconst_decls = split_rconst(source)
 locals = get_rconst_locals(rconst_decls)
@@ -1062,6 +1127,7 @@ source = remove_comments(source)
 source = strip_and_unroll_lines(source)
 source = fix_power_op(source)
 source = split_beta(source,"X(")
+
 source = fix_indices(source,[("X","K","istage"),("JVS","Ghimj")])
 source = strip_lines(source)
 source_cuda["kppsolve"] = generate_kppsolve(source)
@@ -1102,7 +1168,14 @@ source_cuda["fun"] = generate_fun(source,NREACT)
 
 ###############################################
 
-lu_diag = find_LU_DIAG(file_messy_mecca_kpp, NVAR)
+
+if (multifile == True):
+    file_messy_jacobian = open("messy_mecca_kpp_jacobiansp.f90","r")
+    lu_diag = find_LU_DIAG(file_messy_jacobian, NVAR)
+else:
+    lu_diag = find_LU_DIAG(file_messy_mecca_kpp, NVAR)
+
+
 source_cuda["ros_preparematrix"] = generate_prepareMatrix(lu_diag)
 
 ###############################################
