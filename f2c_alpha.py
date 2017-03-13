@@ -592,7 +592,7 @@ def find_LU_CROW(file_in, NVAR):
     lu_diag = lu_diag.split(",")
     for line_num in range(len(lu_diag)):
         lu_diag[line_num] = str(int(lu_diag[line_num])-1)
-    return lu_diag[:NVAR]
+    return lu_diag
 
 #########################################################################################################
 
