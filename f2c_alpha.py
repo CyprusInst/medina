@@ -567,7 +567,35 @@ def find_LU_DIAG(file_in, NVAR):
     for line_num in range(len(lu_diag)):
         lu_diag[line_num] = str(int(lu_diag[line_num])-1)
     return lu_diag[:NVAR]
-    
+
+
+
+def find_LU_CROW(file_in, NVAR):
+    file_in.seek(0)    
+    source = file_in.readlines()
+    the_line = 0
+    for line_num in range(len(source)):  
+        if "lu_crow" in source[line_num].lower():
+            the_line = line_num
+            break
+
+    lu_diag = []
+    for line_num in range(the_line,len(source)):
+        lu_diag.append(source[line_num])
+        if "/)" in source[line_num]:
+            break;
+    lu_diag = remove_comments(lu_diag)
+    lu_diag = strip_and_unroll_lines(lu_diag)
+    lu_diag = lu_diag[0].lower()
+    lu_diag = lu_diag[lu_diag.find("(/")+2:lu_diag.find("/)")]
+    lu_diag = lu_diag.replace(" ","")
+    lu_diag = lu_diag.split(",")
+    for line_num in range(len(lu_diag)):
+        lu_diag[line_num] = str(int(lu_diag[line_num])-1)
+    return lu_diag[:NVAR]
+
+#########################################################################################################
+
         
 def generate_prepareMatrix(lu_diag):
     prepareMatrix = []
