@@ -436,6 +436,46 @@ def generate_kppDecomp(source,NSPEC):
     return kppDecomp
     
 pass
+
+
+#########################################################################################################
+#########################################################################################################
+          
+def generate_kppDecompIndirect(source,NSPEC):
+    kppDecomp = []
+    kppDecomp.append("__device__ void kppDecomp(double *Ghimj, const int VL_GLO)\n")
+    kppDecomp.append("{\n")
+    kppDecomp.append("    double a=0.0;\n")
+    kppDecomp.append("    int k, kk, j, jj;\n")
+    kppDecomp.append("    double W[" + str(NSPEC) +"];\n")
+
+    kppDecomp.append("\n")
+
+    loop = "\n\
+    for (k=0;k<NVAR;k++){ \n\
+        for ( kk = LU_CROW[k]-1; kk< (LU_CROW[k+1]-1); kk++){ \n\
+            W[ LU_ICOL[kk] ]= Ghimj[kk];\n\
+        }\n\
+        for ( kk = LU_CROW[k]; kk < (LU_DIAG[k]- 1); k++){\n\
+            j = LU_ICOL[kk];\n\
+            a = - W[j] / Ghimj[ LU_DIAG[j]];\n\
+            W[j] = - a;\n\
+            for ( jj = LU_DIAG[j]+1; jj< (LU_CROW[j+ 1]- 1); jj++) {\n\
+                W[ LU_ICOL[jj] ] = W[ LU_ICOL[jj]]+  a*Ghimj[jj];\n\
+            }\n\
+        }\n\
+        DO kk = LU_CROW(k), LU_CROW[k+ 1]- 1{\n\
+            Ghimj[kk] = W[ LU_ICOL[kk]];\n\
+        }\n\
+    }\n"
+
+
+    kppDecomp.append(loop)
+    kppDecomp.append("}\n")
+    return kppDecomp
+    
+pass
+
 #########################################################################################################
 #########################################################################################################
         
@@ -1139,9 +1179,17 @@ source = subroutines['kppdecomp']
 source = remove_comments(source)
 source = strip_and_unroll_lines(source)
 source = fix_power_op(source)
-source = split_beta(source,"W(")
-source = fix_indices(source,[("W","W"),("JVS","Ghimj")])
-source_cuda["kppdecomp"] = generate_kppDecomp(source,NSPEC)
+
+
+
+if ( indirect == False):
+    source = split_beta(source,"DO k=1,NVAR")
+    print "Indirect transformation."
+    source_cuda["kppdecomp"] = generate_kppDecompIndirect(source,NSPEC)
+else:
+    source = split_beta(source,"W(")
+    source = fix_indices(source,[("W","W"),("JVS","Ghimj")])
+    source_cuda["kppdecomp"] = generate_kppDecomp(source,NSPEC)
 
 ###############################################
 print "\n==> Step 6: Parsing function jac_sp."
