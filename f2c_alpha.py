@@ -612,7 +612,7 @@ def find_LU_DIAG(file_in, NVAR):
     lu_diag = lu_diag.lower()
     lu_diag = lu_diag[lu_diag.find("(/")+2:lu_diag.rfind("/)")]
 
-    lu_diag = re.sub(r"\/\)\ninteger, parameter, dimension\([0-9]+\) :: lu_diag_[0-9] =  \(/",r",",lu_diag)
+    lu_diag = re.sub(r"\/\)\ninteger, parameter, dimension\([0-9]+\)?\s::?\slu_diag_[0-9]?\s=?\s\(/",r",",lu_diag)
     lu_diag = lu_diag.replace(" ","")
     lu_diag = lu_diag.split(",")
     for line_num in range(len(lu_diag)):
@@ -665,7 +665,7 @@ def find_LU_CROW(file_in, NVAR):
     lu_diag = lu_diag.lower()
     lu_diag = lu_diag[lu_diag.find("(/")+2:lu_diag.rfind("/)")]
 
-    lu_diag = re.sub(r"\/\)\ninteger, parameter, dimension\([0-9]+\) :: lu_crow_[0-9] =  \(/",r",",lu_diag)
+    lu_diag = re.sub(r"\/\)\ninteger, parameter, dimension\([0-9]+\)?\s::?\slu_crow_[0-9]?\s=?\s\(/",r",",lu_diag)
     lu_diag = lu_diag.replace(" ","")
     lu_diag = lu_diag.split(",")
     for line_num in range(len(lu_diag)):
@@ -715,7 +715,7 @@ def find_LU_ICOL(file_in, NVAR):
     lu_diag = lu_diag.lower()
     lu_diag = lu_diag[lu_diag.find("(/")+2:lu_diag.rfind("/)")]
 
-    lu_diag = re.sub(r"\/\)\ninteger, parameter, dimension\([0-9]+\) :: lu_icol_[0-9] =  \(/",r",",lu_diag)
+    lu_diag = re.sub(r"\/\)\ninteger, parameter, dimension\([0-9]+\)?\s::?\slu_icol_[0-9]?\s=?\s\(/",r",",lu_diag)
     lu_diag = lu_diag.replace(" ","")
     lu_diag = lu_diag.split(",")
     for line_num in range(len(lu_diag)):
