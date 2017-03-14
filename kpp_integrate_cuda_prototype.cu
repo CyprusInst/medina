@@ -176,6 +176,23 @@ __device__ double machine_eps_flt_cuda()
     return (s.f64 - 1.);
 }
 
+__device__  static double alpha_AN(const int n, const int ro2type, const double temp, const double cair){
+    double alpha=2.E-22, beta=1.0, Yinf_298K=0.43,  F=0.41, m0=0., minf=8.0;
+    double Y0_298K, Y0_298K_tp, Yinf_298K_t, zeta, k_ratio, alpha_a;
+    /*  IF (ro2type = 1) THEN   m = 0.4                !   primary RO2
+        ELSE IF (ro2type = 2) THEN  m = 1.                 !   secondary RO2
+        ELSE IF (ro2type = 3) THEN  m = 0.3                !   tertiary RO2
+        ELSE  m = 1.
+  */
+    double m = 1.;
+    Y0_298K     = alpha*exp(beta*n);
+    Y0_298K_tp  = Y0_298K *cair *pow((temp/298),(- m0));
+    Yinf_298K_t = Yinf_298K * pow((temp/298),(- minf));
+    zeta        = 1/(1+ pow(log10(Y0_298K_tp/Yinf_298K_t),2));
+    k_ratio     = (Y0_298K_tp/(1+ Y0_298K_tp/Yinf_298K_t))*pow(F,zeta);
+    alpha_a    = k_ratio/(1+ k_ratio) *m;
+    return alpha_a;
+}
 __device__ double ros_ErrorNorm(double *var, double * __restrict__ varNew, double * __restrict__ varErr, 
                                 const double * __restrict__ absTol, const double * __restrict__ relTol,
                                 int vectorTol )
