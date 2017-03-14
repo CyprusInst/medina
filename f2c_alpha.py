@@ -105,6 +105,8 @@ def decapitalize_vars(source,keys):
         fixed.append(line)
     return fixed
 
+
+
 def fix_power_op(source):
     operators = "*/+-<>=.,"
     var_name = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_'
@@ -414,7 +416,7 @@ pass
 #########################################################################################################
 #########################################################################################################
           
-def generate_kppDecomp(source,NSPEC):
+def generate_kppDecomp(source,NSPEC,lu_diag,lu_crow,lu_icol):
     kppDecomp = []
     kppDecomp.append("__device__ void kppDecomp(double *Ghimj, int VL_GLO)\n")
     kppDecomp.append("{\n")
@@ -441,8 +443,31 @@ pass
 #########################################################################################################
 #########################################################################################################
           
-def generate_kppDecompIndirect(source,NSPEC):
+def generate_kppDecompIndirect(source,NSPEC,lu_diag,lu_crow,lu_icol):
     kppDecomp = []
+
+    kppDecomp.append("\n")
+
+    s_lu =  "__device__ const int LU_DIAG[" + str(len(lu_diag)+1) + "] =  { "
+    for i in range(len(lu_diag)):
+        s_lu = s_lu + str(lu_diag[i]) + ","
+    s_lu = s_lu + "0  };\n"
+    kppDecomp.append(s_lu)
+
+    s_lu =  "__device__ const int LU_CROW[" + str(len(lu_crow)+1) + "] =  { "
+    for i in range(len(lu_crow)):
+        s_lu = s_lu + str(lu_crow[i]) + ","
+    s_lu = s_lu + "0  };\n"
+    kppDecomp.append(s_lu)
+
+    s_lu =  "__device__ const int LU_ICOL[" + str(len(lu_icol)+1) + "] =  { "
+    for i in range(len(lu_icol)):
+        s_lu = s_lu + str(lu_icol[i]) + ","
+    s_lu = s_lu + "0  };\n"
+    kppDecomp.append(s_lu)
+
+
+    kppDecomp.append("\n")
     kppDecomp.append("__device__ void kppDecomp(double *Ghimj, const int VL_GLO)\n")
     kppDecomp.append("{\n")
     kppDecomp.append("    double a=0.0;\n")
@@ -453,7 +478,7 @@ def generate_kppDecompIndirect(source,NSPEC):
 
     loop = "\n\
     for (k=0;k<NVAR;k++){ \n\
-        for ( kk = LU_CROW[k]-1; kk< (LU_CROW[k+1]-1); kk++){ \n\
+        for ( kk = LU_CROW[k]; kk< (LU_CROW[k+1]-1); kk++){ \n\
             W[ LU_ICOL[kk] ]= Ghimj[kk];\n\
         }\n\
         for ( kk = LU_CROW[k]; kk < (LU_DIAG[k]- 1); k++){\n\
@@ -464,7 +489,7 @@ def generate_kppDecompIndirect(source,NSPEC):
                 W[ LU_ICOL[jj] ] = W[ LU_ICOL[jj]]+  a*Ghimj[jj];\n\
             }\n\
         }\n\
-        DO kk = LU_CROW(k), LU_CROW[k+ 1]- 1{\n\
+        for (kk = LU_CROW[k]; kk< (LU_CROW[k+ 1]- 1); kk++ ) {\n\
             Ghimj[kk] = W[ LU_ICOL[kk]];\n\
         }\n\
     }\n"
@@ -543,30 +568,59 @@ def generate_fun(source,NREACT):
 pass
 #########################################################################################################
 #########################################################################################################
-        
+
+
+
 def find_LU_DIAG(file_in, NVAR):
     file_in.seek(0)    
     source = file_in.readlines()
     the_line = 0
+    glu_diag = []
+    long_tables = False
+
     for line_num in range(len(source)):  
-        if "lu_diag" in source[line_num].lower():
+        if "lu_diag_0" in source[line_num].lower():
+            print "Detected long tables!" 
+            long_tables = True
             the_line = line_num
             break
 
+
+    for line_num in range(len(source)):  
+        if (long_tables == True):
+            if "lu_diag " in source[line_num].lower():
+                end_line = line_num
+        else:
+            if "lu_diag" in source[line_num].lower():
+                the_line = line_num
+                break
+
     lu_diag = []
-    for line_num in range(the_line,len(source)):
-        lu_diag.append(source[line_num])
-        if "/)" in source[line_num]:
-            break;
+    if (long_tables == True):
+        for line_num in range(the_line,end_line):
+            lu_diag.append(source[line_num])
+    else:
+        for line_num in range(the_line,len(source)):
+            lu_diag.append(source[line_num])
+            if "/)" in source[line_num]:
+                break;
+
+
     lu_diag = remove_comments(lu_diag)
     lu_diag = strip_and_unroll_lines(lu_diag)
-    lu_diag = lu_diag[0].lower()
-    lu_diag = lu_diag[lu_diag.find("(/")+2:lu_diag.find("/)")]
+    lu_diag = "".join(lu_diag)
+    lu_diag = lu_diag.lower()
+    lu_diag = lu_diag[lu_diag.find("(/")+2:lu_diag.rfind("/)")]
+
+    lu_diag = re.sub(r"\/\)\ninteger, parameter, dimension\([0-9]+\) :: lu_diag_[0-9] =  \(/",r",",lu_diag)
     lu_diag = lu_diag.replace(" ","")
     lu_diag = lu_diag.split(",")
     for line_num in range(len(lu_diag)):
         lu_diag[line_num] = str(int(lu_diag[line_num])-1)
-    return lu_diag[:NVAR]
+
+
+    return lu_diag
+
 
 
 
@@ -574,28 +628,104 @@ def find_LU_CROW(file_in, NVAR):
     file_in.seek(0)    
     source = file_in.readlines()
     the_line = 0
+    glu_diag = []
+    long_tables = False
+
     for line_num in range(len(source)):  
-        if "lu_crow" in source[line_num].lower():
+        if "lu_crow_0" in source[line_num].lower():
+            print "Detected long tables!" 
+            long_tables = True
             the_line = line_num
             break
 
+
+    for line_num in range(len(source)):  
+        if (long_tables == True):
+            if "lu_crow " in source[line_num].lower():
+                end_line = line_num
+        else:
+            if "lu_crow" in source[line_num].lower():
+                the_line = line_num
+                break
+
     lu_diag = []
-    for line_num in range(the_line,len(source)):
-        lu_diag.append(source[line_num])
-        if "/)" in source[line_num]:
-            break;
+    if (long_tables == True):
+        for line_num in range(the_line,end_line):
+            lu_diag.append(source[line_num])
+    else:
+        for line_num in range(the_line,len(source)):
+            lu_diag.append(source[line_num])
+            if "/)" in source[line_num]:
+                break;
+
+
     lu_diag = remove_comments(lu_diag)
     lu_diag = strip_and_unroll_lines(lu_diag)
-    lu_diag = lu_diag[0].lower()
-    lu_diag = lu_diag[lu_diag.find("(/")+2:lu_diag.find("/)")]
+    lu_diag = "".join(lu_diag)
+    lu_diag = lu_diag.lower()
+    lu_diag = lu_diag[lu_diag.find("(/")+2:lu_diag.rfind("/)")]
+
+    lu_diag = re.sub(r"\/\)\ninteger, parameter, dimension\([0-9]+\) :: lu_crow_[0-9] =  \(/",r",",lu_diag)
     lu_diag = lu_diag.replace(" ","")
     lu_diag = lu_diag.split(",")
     for line_num in range(len(lu_diag)):
         lu_diag[line_num] = str(int(lu_diag[line_num])-1)
+
+
     return lu_diag
 
-#########################################################################################################
+def find_LU_ICOL(file_in, NVAR):
+    file_in.seek(0)    
+    source = file_in.readlines()
+    the_line = 0
+    glu_diag = []
+    long_tables = False
 
+    for line_num in range(len(source)):  
+        if "lu_icol_0" in source[line_num].lower():
+            print "Detected long tables!" 
+            long_tables = True
+            the_line = line_num
+            break
+
+
+    for line_num in range(len(source)):  
+        if (long_tables == True):
+            if "lu_icol " in source[line_num].lower():
+                end_line = line_num
+        else:
+            if "lu_icol" in source[line_num].lower():
+                the_line = line_num
+                break
+
+    lu_diag = []
+    if (long_tables == True):
+        for line_num in range(the_line,end_line):
+            lu_diag.append(source[line_num])
+    else:
+        for line_num in range(the_line,len(source)):
+            lu_diag.append(source[line_num])
+            if "/)" in source[line_num]:
+                break;
+
+
+    lu_diag = remove_comments(lu_diag)
+    lu_diag = strip_and_unroll_lines(lu_diag)
+    lu_diag = "".join(lu_diag)
+    lu_diag = lu_diag.lower()
+    lu_diag = lu_diag[lu_diag.find("(/")+2:lu_diag.rfind("/)")]
+
+    lu_diag = re.sub(r"\/\)\ninteger, parameter, dimension\([0-9]+\) :: lu_icol_[0-9] =  \(/",r",",lu_diag)
+    lu_diag = lu_diag.replace(" ","")
+    lu_diag = lu_diag.split(",")
+    for line_num in range(len(lu_diag)):
+        lu_diag[line_num] = str(int(lu_diag[line_num])-1)
+
+
+    return lu_diag
+
+
+#########################################################################################################
         
 def generate_prepareMatrix(lu_diag):
     prepareMatrix = []
@@ -1054,7 +1184,6 @@ if '= C(1:VL,:)' in open("../smcl/messy_mecca_kpp.f90").read():
 if ( os.path.isfile("messy_mecca_kpp_global.f90") == True             and
      os.path.isfile("messy_mecca_kpp_jacobian.f90") == True
      ):
-    print "Can't convert multiple files version.\n"
     print "Multifile version detected!"
     multifile = True
 
@@ -1066,12 +1195,10 @@ if ( os.path.isfile("messy_mecca_kpp_global.f90") == True             and
 if (multifile == True):
     file_messy_mecca_kpp = open("messy_mecca_kpp_linearalgebra.f90","r")
     subroutines = find_subroutines(file_messy_mecca_kpp, ["KppDecomp","KppDecompCmplx"])
-    if 'LU_CROW(k+1)' in subroutines["kppdecomp"]:
-        print "Can't convert multiple files with indirect indexing.\n"
-        print "--> Change the decomp in the conf file.\n"
-        print "--> Contact the authors for support.\n"
-        print "Exiting... \n"
-
+    infile = " ".join(subroutines["kppdecomp"])
+    if 'LU_ICOL(kk)' in infile:
+        print "Multiple files with indirect indexing detected.\n"
+        indirect = True
 
 
 
@@ -1163,6 +1290,20 @@ NREACT = int(source_cuda["defines_vars_2"][3].split(" ")[2].strip())
 LU_NONZERO = int(source_cuda["defines_vars_2"][4].split(" ")[2].strip())
 NBSIZE = int(source_cuda["defines_vars_2"][5].split(" ")[2].strip()) 
 
+
+# read the tables 
+if (multifile == True):
+    file_messy_jacobian = open("messy_mecca_kpp_jacobiansp.f90","r")
+    lu_diag = find_LU_DIAG(file_messy_jacobian, NVAR)
+    lu_crow = find_LU_CROW(file_messy_jacobian, NVAR)
+    lu_icol = find_LU_ICOL(file_messy_jacobian, NVAR)
+else:
+    lu_diag = find_LU_DIAG(file_messy_mecca_kpp, NVAR)
+    lu_crow = find_LU_CROW(file_messy_mecca_kpp, NVAR)
+    lu_icol = find_LU_ICOL(file_messy_mecca_kpp, NVAR)
+
+
+
 ###############################################
 print "\n==> Step 3: Parsing function update_rconst."
 
@@ -1209,15 +1350,17 @@ source = strip_and_unroll_lines(source)
 source = fix_power_op(source)
 
 
-
-if ( indirect == False):
+if ( indirect == True):
     source = split_beta(source,"DO k=1,NVAR")
     print "Indirect transformation."
-    source_cuda["kppdecomp"] = generate_kppDecompIndirect(source,NSPEC)
+    source_cuda["kppdecomp"] = generate_kppDecompIndirect(source,NSPEC,lu_diag,lu_crow,lu_icol)
 else:
     source = split_beta(source,"W(")
     source = fix_indices(source,[("W","W"),("JVS","Ghimj")])
-    source_cuda["kppdecomp"] = generate_kppDecomp(source,NSPEC)
+    source_cuda["kppdecomp"] = generate_kppDecomp(source,NSPEC,lu_diag,lu_crow,lu_icol)
+
+
+
 
 ###############################################
 print "\n==> Step 6: Parsing function jac_sp."
@@ -1244,12 +1387,6 @@ source_cuda["fun"] = generate_fun(source,NREACT)
 
 ###############################################
 
-
-if (multifile == True):
-    file_messy_jacobian = open("messy_mecca_kpp_jacobiansp.f90","r")
-    lu_diag = find_LU_DIAG(file_messy_jacobian, NVAR)
-else:
-    lu_diag = find_LU_DIAG(file_messy_mecca_kpp, NVAR)
 
 
 source_cuda["ros_preparematrix"] = generate_prepareMatrix(lu_diag)
