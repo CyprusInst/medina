@@ -109,6 +109,9 @@ def decapitalize_vars(source,keys):
 
 def fix_power_op(source):
     operators = "*/+-<>=.,"
+    # can use this in the future:
+    #(\(?[0-9,a-z,A-Z,_,+,-,/,., ,)]+\)?)\*\*(\(?[-,\d,+,.,a-zA-Z_,/, ,\t]+\)?)
+    #
     var_name = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_'
     precision_qualifiers = ["_sp","_dp","_qp"]
     fixed = []
@@ -138,7 +141,6 @@ def fix_power_op(source):
                 else:
                     exponent = right
                     right = ""
-
 
                 if left[-1]==")": #if it's (...) or a3_(...)
                     left_bra=0
@@ -228,7 +230,8 @@ def fix_power_op(source):
                                 else:
                                     break
                             pos = pos - 1
-                        base = left[pos:]+((not isnumber) and (not scientif))*left[:]
+                        #base = left[pos:]+((not isnumber) and (not scientif))*left[:]
+                        base = left[pos:]
                         left = left[:pos].strip() 
                     else:
                         print "OOPS! Missed something..."
@@ -358,6 +361,24 @@ def get_rconst_locals(source):
 
 def generate_update_rconst(rconst_ops,rconst_decls,locals):
     update_rconst = []
+    rename_tmp = False
+
+    # these are for renaming the rconst ops
+    for line in rconst_ops:
+        if ( "temp)" in line):
+            rename_tmp = True
+            break
+
+    if (rename_tmp == True):
+        rconst_ops = [w.replace('temp', 'temp_loc') for w in rconst_ops]
+        rconst_decls = [w.replace('temp', 'temp_loc') for w in rconst_decls]
+        rconst_ops = [w.replace('press', 'press_loc') for w in rconst_ops]
+        rconst_decls = [w.replace('press', 'press_loc') for w in rconst_decls]
+        rconst_ops = [w.replace('cair', 'cair_loc') for w in rconst_ops]
+        rconst_decls = [w.replace('cair', 'cair_loc') for w in rconst_decls]
+
+
+
     update_rconst.append( \
     "__global__ void  update_rconst(const double * __restrict__ conc, const double * __restrict__ temp, const double * __restrict__ press,\n \
 			       const double * __restrict__ cair, const double * __restrict__ khet_st, const double * __restrict__ khet_tr,\n \
@@ -613,6 +634,18 @@ def find_LU_DIAG(file_in, NVAR):
     lu_diag = lu_diag[lu_diag.find("(/")+2:lu_diag.rfind("/)")]
 
     lu_diag = re.sub(r"\/\)\ninteger, parameter, dimension\([0-9]+\)?\s::?\slu_diag_[0-9]?\s=?\s\(/",r",",lu_diag)
+
+
+    # if failes break it in smaller
+    lu_diag = re.sub(r"dimension\([0-9]+\)::lu_diag_[0-9]\s?=\s?\(\/",r",",lu_diag)
+    lu_diag = re.sub(r"dimension\([0-9]+\)", r"",lu_diag)
+    lu_diag = re.sub(r"::", r"",lu_diag)
+    lu_diag = re.sub(r"lu_diag_[0-9]\s?=\s?",r"",lu_diag)
+    lu_diag = re.sub(r"\(/",r"",lu_diag)
+    lu_diag = lu_diag.replace("/)\ninteger","")
+    lu_diag = lu_diag.replace("parameter,","")
+
+
     lu_diag = lu_diag.replace(" ","")
     lu_diag = lu_diag.split(",")
     for line_num in range(len(lu_diag)):
@@ -666,6 +699,18 @@ def find_LU_CROW(file_in, NVAR):
     lu_diag = lu_diag[lu_diag.find("(/")+2:lu_diag.rfind("/)")]
 
     lu_diag = re.sub(r"\/\)\ninteger, parameter, dimension\([0-9]+\)?\s::?\slu_crow_[0-9]?\s=?\s\(/",r",",lu_diag)
+
+    # if failes break it in smaller
+    lu_diag = re.sub(r"dimension\([0-9]+\)::lu_crow_[0-9]\s?=\s?\(\/",r",",lu_diag)
+    lu_diag = re.sub(r"dimension\([0-9]+\)", r"",lu_diag)
+    lu_diag = re.sub(r"::", r"",lu_diag)
+    lu_diag = re.sub(r"lu_crow_[0-9]\s?=\s?",r"",lu_diag)
+    lu_diag = re.sub(r"\(/",r"",lu_diag)
+    lu_diag = lu_diag.replace("/)\ninteger","")
+    lu_diag = lu_diag.replace("parameter,","")
+
+
+
     lu_diag = lu_diag.replace(" ","")
     lu_diag = lu_diag.split(",")
     for line_num in range(len(lu_diag)):
@@ -716,6 +761,17 @@ def find_LU_ICOL(file_in, NVAR):
     lu_diag = lu_diag[lu_diag.find("(/")+2:lu_diag.rfind("/)")]
 
     lu_diag = re.sub(r"\/\)\ninteger, parameter, dimension\([0-9]+\)?\s::?\slu_icol_[0-9]?\s=?\s\(/",r",",lu_diag)
+
+
+    # if failes break it in smaller
+    lu_diag = re.sub(r"dimension\([0-9]+\)::lu_icol_[0-9]\s?=\s?\(\/",r",",lu_diag)
+    lu_diag = re.sub(r"dimension\([0-9]+\)", r"",lu_diag)
+    lu_diag = re.sub(r"::", r"",lu_diag)
+    lu_diag = re.sub(r"lu_icol_[0-9]\s?=\s?",r"",lu_diag)
+    lu_diag = re.sub(r"\(/",r"",lu_diag)
+    lu_diag = lu_diag.replace("/)\ninteger","")
+    lu_diag = lu_diag.replace("parameter,","")
+
     lu_diag = lu_diag.replace(" ","")
     lu_diag = lu_diag.split(",")
     for line_num in range(len(lu_diag)):
