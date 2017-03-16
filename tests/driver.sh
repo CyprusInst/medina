@@ -49,3 +49,19 @@ echo "====> STEP 4: Running the application..."
 
 echo "====> STEP 5: Comparing the output results..."
 
+echo "====> STEP 6: Cleaning up the directories..."
+
+
+(
+set -x
+cd messy/smcl/
+rm ./*
+cd ../util/
+rm ./*
+)
+
+
+
+echo "====> Testing Finished"
+
+
