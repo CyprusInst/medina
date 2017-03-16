@@ -872,7 +872,7 @@ def generate_define_vars(file_in,var_names):
                     value = int(value)
                 else:
                     value = int(value)
-                out.append("#define "+name+" "+str(value+1)+"\n")
+                out.append("#define "+name+" "+str(value)+"\n")
                 var_names.remove(var_name)
     if var_names != []:
         print "Warning: variables "+str(var_names)+" were not found"
