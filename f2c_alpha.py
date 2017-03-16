@@ -558,10 +558,9 @@ def generate_jac_sp(source,NBSIZE):
 pass
 #########################################################################################################
 #########################################################################################################
-
 def generate_fun(source,NREACT):
     fun = []
-    fun.append("__device__ void Fun(double *var, double *fix, double *rconst, double *varDot, int &Nfun, const int VL_GLO)")
+    fun.append("__device__ void Fun(double *var, const double * __restrict__ fix, const double * __restrict__ rconst, double *varDot, int &Nfun, const int VL_GLO)")
     fun.append("{\n")
     fun.append("    int index = blockIdx.x*blockDim.x+threadIdx.x;\n")
     fun.append("\n")

@@ -270,8 +270,7 @@ __device__ void ros_Decomp(double *Ghimj, int &Ndec, int VL_GLO)
 
 =#=#=#=#=#=#=#=#=#=#=Fun=#=#=#=#=#=#=#=#=#=#=
 
-
-__device__ void ros_FunTimeDerivative(double T, double roundoff, double *var, double *fix, double *rconst, double *dFdT, double *Fcn0, int &Nfun, int VL_GLO)
+__device__ void ros_FunTimeDerivative(double T, double roundoff, double *var, const double * __restrict__ fix, const double * __restrict__ rconst, double *dFdT, double *Fcn0, int &Nfun, int VL_GLO)
 {
     int index = blockIdx.x*blockDim.x+threadIdx.x;
     const double DELTAMIN = 1.0E-6;
@@ -286,7 +285,6 @@ __device__ void ros_FunTimeDerivative(double T, double roundoff, double *var, do
         dFdT(index,i) = (dFdT(index,i) - Fcn0(index,i)) * one_over_delta;
     }
 }
-
 
 __device__ int ros_Integrator(double * __restrict__ var, double * __restrict__ fix, double Tstart, double Tend, double &T,
         //  Rosenbrock method coefficients
