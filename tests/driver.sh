@@ -47,6 +47,22 @@ fi
 
 echo "====> STEP 4: Running the application..."
 
+
+(
+set -x
+cat ./raw/main.c >> ./messy/smcl/messy_mecca_kpp_acc.cu
+cd messy/smcl
+nvcc -O1  messy_mecca_kpp_acc.cu  2>&1  | grep error
+./a.out
+cuda-memcheck ./a.out
+)
+
+status=$?
+if [ $status == 0 ]; then
+       echo "NVCC - Unsuccessful"
+       exit -1
+fi
+
 echo "====> STEP 5: Comparing the output results..."
 
 echo "====> STEP 6: Cleaning up the directories..."
