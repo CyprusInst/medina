@@ -1,3 +1,12 @@
+/*
+ *   Example input data for testing the verification of the transformation.
+ *
+ *   Copyright 2016 The Cyprus Institute 
+ *
+ *   Developers: Michail Alvanos - m.alvanos@cyi.ac.cy
+ *               Theodoros Christoudias - christoudias@cyi.ac.cy
+ *
+ * */
 
 #include <time.h>
 #include <sys/time.h>
@@ -8,11 +17,8 @@ double conc[VL_GLO*NSPEC];
 double temp[VL_GLO];
 double press[VL_GLO];
 double cair[VL_GLO];
-double khet_st[VL_GLO*NSPEC];
-double khet_tr[VL_GLO*NSPEC];
 double jx[VL_GLO*NSPEC];
-double abstol[NSPEC];
-double reltol[NSPEC];
+
 
 int xNacc[VL_GLO];
 int xNrej[VL_GLO];
@@ -94,26 +100,58 @@ double conc_cell[NSPEC] = {
 87651408241.1165
 };
 
+double abstol[NSPEC] = {
+    0.0
+};
+
+double reltol[NSPEC] = {
+
+    0.0
+};
+
+double khet_st[VL_GLO*NSPEC] = {
+    0.0
+};
+
+double khet_tr[VL_GLO*NSPEC] = {
+    0.0
+};
+
+
 int main(int argc, char **argv){
     
     int n = 1; // proccess element
    
-    int sizes[4] = {VL_GLO,NSPEC,NSPEC,NREACT}; 
-    int icntrl[4] = {0,0,0,0};
 
-    double roundoff;
-    double timestep = 0.1f;
 
     int istatus;
     int ierr;
     int i,j;
 
+    int sizes[4] = {VL_GLO,NSPEC,NSPEC,NREACT}; 
+    int icntrl[4] = {0,0,2,0};
+
+    double roundoff = 2.220446049250313E-016;
+    double timestep = 720.0;
+
     for (i=0;i<VL_GLO;i++){
         for (j=0;j<NSPEC;j++){
               conc[i*NSPEC + j] = conc_cell[j];
         }
+        temp[i] = 240.995971972245;
+        press[i] = 0.994591236114502; 
+        cair[i] = 298914285136738.0;
+
+        khet_tr[i*4 + 0] = 7.408371201503456E-008;
+        khet_tr[i*4 + 1] = 4.849455570110968E-007;
+        khet_tr[i*4 + 2] =  0.000000000000000E+000;  
+        khet_tr[i*4 + 3] = 2.718003287797325E-007;
     }
         
+    for (i=0;i<NSPEC;i++){
+        abstol[i] = 10.0; 
+        reltol[i] = 0.5; 
+    }
 
 
     cudaDeviceSetCacheConfig(cudaFuncCachePreferL1); 
