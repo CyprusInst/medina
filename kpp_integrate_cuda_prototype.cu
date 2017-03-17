@@ -420,10 +420,13 @@ __device__ int ros_Integrator(double * __restrict__ var, double * __restrict__ f
 
 		    for (int j=0; j<ros_S; j++){
 		    	    double tmp = K(index,j,i);
+
+#ifdef DEBUG
 			    if (isnan(tmp)){
 			    	printf("Solver detected NAN!");
 			    	tmp = 0;
 			    }
+#endif
 			    tmpNew += tmp*ros_M[j];
 			    tmpErr += tmp*ros_E[j];
 		    }
