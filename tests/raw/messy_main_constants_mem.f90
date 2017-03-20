@@ -14,6 +14,12 @@
 
 MODULE messy_main_constants_mem
 
+  INTEGER, PARAMETER :: sp = SELECTED_REAL_KIND(6,37)  
+  INTEGER, PARAMETER :: dp = SELECTED_REAL_KIND(12,307)
+  REAL(DP), PARAMETER :: TINY_DP = TINY(0._dp) ! mz_rs_20060114
+  REAL(DP), PARAMETER :: HUGE_DP = HUGE(0._dp) ! mz_rs_20100409
+
+
   ! PHYSICAL CONSTANTS (CODATA Recommended Values, 2010, 
   ! http://physics.nist.gov/cuu/Constants/)
   REAL(dp), PARAMETER :: pi       = 3.14159265358979323846_dp
@@ -23,18 +29,10 @@ MODULE messy_main_constants_mem
   REAL(dp), PARAMETER :: stbo     = 5.670373E-8_dp   ! Stephan-Boltzmann constant [W/m2/K4]
   REAL(dp), PARAMETER :: N_A      = 6.02214129E23_dp ! Avogadro constant [1/mol]
   REAL(dp), PARAMETER :: N_A_kmol = 6.02214129E26_dp ! Avogadro constant [1/kmol] 
-#ifndef MESSYIDTC
   REAL(dp), PARAMETER :: g        = 9.80665_dp       ! gravity acceleration [m/s2]
-#else
-  REAL(dp), PARAMETER :: g        = 9.80616_dp       ! gravity acceleration [m/s2]
-#endif
   REAL(dp), PARAMETER :: T0       = 298.15_dp        ! standard temperature [K]
   REAL(dp), PARAMETER :: T0_INV   = 1._DP / T0       ! 1/T0 [1/K]
-#ifndef MESSYIDTC
   REAL(dp), PARAMETER :: atm2Pa   = 101325._dp       ! conversion from [atm] to [Pa]
-#else
-  REAL(dp), PARAMETER :: atm2Pa   = 100000._dp       ! conversion from [atm] to [Pa]
-#endif
 
 END MODULE messy_main_constants_mem
 

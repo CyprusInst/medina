@@ -63,9 +63,24 @@ if [ $status == 0 ]; then
        exit -1
 fi
 
-echo "====> STEP 5: Comparing the output results..."
 
-echo "====> STEP 6: Cleaning up the directories..."
+
+echo "====> STEP 5: Compiling original version in FORTRAN..."
+
+
+(
+set -x
+cd messy/fortran
+gfortran -c messy_cmn_photol_mem.f90
+gfortran -c messy_main_constants_mem.f90
+gfortran -c messy_mecca_kpp.f90
+gfortran -c main.f90
+./a.out
+)
+
+echo "====> STEP 6: Comparing the output results..."
+
+echo "====> STEP 7: Cleaning up the directories..."
 
 
 (

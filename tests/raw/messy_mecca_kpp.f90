@@ -18,8 +18,6 @@ Module messy_mecca_kpp
   ! NOTE: those are required for (some) reaction rates
   USE messy_main_constants_mem,ONLY: N_A,R_gas,atm2Pa
   USE messy_cmn_photol_mem     ! IP_MAX,ip_*,jname ! mz_rs_20081125
-  USE messy_main_tools,ONLY: read_nml_open,read_nml_check,read_nml_close &
-                            ,str
 
 
   IMPLICIT        NONE
@@ -29,7 +27,7 @@ Module messy_mecca_kpp
   PUBLIC :: IERR_NAMES
  
   PUBLIC :: SPC_NAMES,EQN_NAMES,EQN_TAGS,REQ_HET,REQ_AEROSOL,REQ_PHOTRAT &
-          ,REQ_MCFCT,IP_MAX,jname
+          ,REQ_MCFCT,IP_MAX
 
   PUBLIC :: dp
   PUBLIC :: atol,rtol
@@ -1620,27 +1618,11 @@ Module messy_mecca_kpp
   !   
   !   File                 : messy_mecca_kpp_Util.f90
   !   Time                 : Thu Mar 16 10:17:53 2017
-  !   Working directory    : /gpfs/h/malvanos/work/tmp/messy_2.52/messy/tools/kp4/tmp_mecca
   !   Equation file        : messy_mecca_kpp.kpp
   !   Output root filename : messy_mecca_kpp
   !   
   !   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-
-
-
-
-
-   !  HEADER MODULE initialize_kpp_ctrl_template
-
-   !  NOTES:
-   !  -  L_VECTOR is automatically defined by kp4
-   !  -  VL_DIM is automatically defined by kp4
-   !  -  I_LU_DI is automatically defined by kp4
-   !  -  WANTED is automatically defined by xmecca
-   !  -  ICNTRL RCNTRL are automatically defined by kpp
-   !  -  "USE messy_main_tools" is in Module_header of messy_mecca_kpp.f90
-   !  -  SAVE will be automatically added by kp4
 
    ! SAVE
 
@@ -1738,9 +1720,6 @@ Module messy_mecca_kpp
     module procedure   initialize_indexarrays
   end interface        initialize_indexarrays
  
-  interface            initialize_kpp_ctrl
-    module procedure   initialize_kpp_ctrl
-  end interface        initialize_kpp_ctrl
  
 !interface not working  interface            WCOPY
 !interface not working    module procedure   WCOPY
@@ -1770,18 +1749,11 @@ Module messy_mecca_kpp
     module procedure   Update_SUN
   end interface        Update_SUN
  
-  interface            error_output
-    module procedure   error_output
-  end interface        error_output
- 
   interface            KppDecomp
     module procedure   KppDecomp
   end interface        KppDecomp
- 
-  interface            kpp_integrate
-    module procedure   kpp_integrate
-  end interface        kpp_integrate
- 
+
+
 
  
  CONTAINS
@@ -4055,104 +4027,6 @@ END SUBROUTINE Update_RCONST
 SUBROUTINE initialize_indexarrays
 END SUBROUTINE initialize_indexarrays
  
-SUBROUTINE initialize_kpp_ctrl(status, iou, modstr)
-
-
-   !  I/O
-  INTEGER,          INTENT(OUT) :: status
-  INTEGER,          INTENT(IN)  :: iou      !  logical I/O unit
-  CHARACTER(LEN=*), INTENT(IN)  :: modstr   !  read <modstr>.nml
-
-   !  LOCAL
-  REAL(DP) :: tsum
-  INTEGER  :: i
-
-  CALL kpp_read_nml_ctrl(status, iou)
-  IF (status /= 0) RETURN
-
-   !  check fixed time steps
-  tsum = 0.0_dp
-  DO i=1, NMAXFIXSTEPS
-     IF (t_steps(i) < TINY(0.0_DP))EXIT
-     tsum = tsum +  t_steps(i)
-  END DO
-
-  nfsteps = i- 1
-
-  l_fixed_step = (nfsteps > 0) .AND.((tsum - 1.0) < TINY(0.0_DP))
-
-   !  mz_pj_20070531+ 
-   !  DIAGNOSTIC OUTPUT TO LOG- FILE
-  WRITE(*,*) ' MECHANISM        : ',WANTED
-   ! 
-  IF (L_VECTOR) THEN
-     WRITE(*,*) ' MODE             : VECTOR (LENGTH=',VL_DIM,')'
-  ELSE
-     WRITE(*,*) ' MODE             : SCALAR'
-  END IF
-   ! 
-  WRITE(*,*) ' DE-INDEXING MODE :',I_LU_DI
-   ! 
-  WRITE(*,*) ' ICNTRL           : ',icntrl
-  WRITE(*,*) ' RCNTRL           : ',rcntrl
-   ! 
-   !  NOTE: THIS IS ONLY MEANINGFUL FOR VECTORIZED (kp4) ROSENBROCK- METHODS
-  IF (L_VECTOR) THEN
-     IF (l_fixed_step) THEN
-        WRITE(*,*) ' TIME STEPS       : FIXED (',t_steps(1:nfsteps),')'
-     ELSE
-        WRITE(*,*) ' TIME STEPS       : AUTOMATIC'
-     END IF
-  ELSE
-     WRITE(*,*) ' TIME STEPS       : AUTOMATIC '//&
-          &'(t_steps (CTRL_KPP) ignored in SCALAR MODE)'
-  END IF
-   !  mz_pj_20070531- 
-
-  status = 0
-
-CONTAINS
-
-  SUBROUTINE kpp_read_nml_ctrl(status, iou)
-
-     !  READ MECCA NAMELIST, CHECK IT, AND INITIALIZE GLOBAL VARIABLES
-     ! 
-     !  Author: Astrid Kerkweg,  MPICH, June 2007
-     !          Patrick Joeckel, MPICH, June 2007
-
-
-
-     !  I/O
-    INTEGER, INTENT(OUT) :: status  !  error status
-    INTEGER, INTENT(IN)  :: iou     !  logical I/O unit
-
-     !  LOCAL
-    LOGICAL :: lex    !  file exists?
-    INTEGER :: fstat  !  file status
-    CHARACTER(LEN=*),PARAMETER :: substr = 'kpp_read_nml_ctrl'
-
-    NAMELIST /CTRL_KPP/ icntrl, rcntrl, t_steps
-
-     !  INITIALIZE
-    status = 1  !  error
-
-     !  INPUT NAMELIST
-    CALL read_nml_open(lex,substr,iou,'CTRL_KPP',modstr)
-    IF (.not.lex) RETURN     !  <modstr>.nml does not exist
-
-    READ(iou, NML=CTRL_KPP, IOSTAT=fstat)
-    CALL read_nml_check(fstat,substr,iou,'CTRL_KPP',modstr)
-    IF (fstat /= 0) RETURN   !  error while reading namelist
-
-    WRITE(*,*) 'solver-specific method:      icntrl(3) = ',icntrl(3)
-    WRITE(*,*) 'max. number of kpp-substeps: icntrl(4) = ',icntrl(4)
-
-    CALL read_nml_close(substr, iou, modstr)
-    status = 0  !  no error
-
-  END SUBROUTINE kpp_read_nml_ctrl
-
-END SUBROUTINE initialize_kpp_ctrl
  
       SUBROUTINE WCOPY(N,X,incX,Y,incY)
   !  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
@@ -4670,11 +4544,7 @@ CONTAINS  !   SUBROUTINES internal to Rosenbrock
   !   ~~~~ Local variables
    REAL(kind=dp) :: Ynew(NVAR), Fcn0(NVAR), Fcn(NVAR)
    REAL(kind=dp) :: K(NVAR*ros_S), dFdT(NVAR)
-#ifdef FULL_ALGEBRA    
-   REAL(kind=dp) :: Jac0(NVAR,NVAR), Ghimj(NVAR,NVAR)
-#else
    REAL(kind=dp) :: Jac0(LU_NONZERO), Ghimj(LU_NONZERO)
-#endif
    REAL(kind=dp) :: H, Hnew, HC, HG, Fac, Tau
    REAL(kind=dp) :: Err, Yerr(NVAR)
    INTEGER :: Pivot(NVAR), Direction, ioffset, j, istage
@@ -4916,19 +4786,11 @@ Stage: DO istage = 1, ros_S
   !   - - -  - - -  - - -  - - -  - - -  - - -  - - -  - - -  - - -  - - -  - - -  - - -  - - - 
 
   !  ~~~> Input arguments
-#ifdef FULL_ALGEBRA    
-   REAL(kind=dp), INTENT(IN) ::  Jac0(NVAR,NVAR)
-#else
    REAL(kind=dp), INTENT(IN) ::  Jac0(LU_NONZERO)
-#endif   
    REAL(kind=dp), INTENT(IN) ::  gam
    INTEGER, INTENT(IN) ::  Direction
   !  ~~~> Output arguments
-#ifdef FULL_ALGEBRA    
-   REAL(kind=dp), INTENT(OUT) :: Ghimj(NVAR,NVAR)
-#else
    REAL(kind=dp), INTENT(OUT) :: Ghimj(LU_NONZERO)
-#endif   
    LOGICAL, INTENT(OUT) ::  Singular
    INTEGER, INTENT(OUT) ::  Pivot(NVAR)
   !  ~~~> Inout arguments
@@ -4944,16 +4806,6 @@ Stage: DO istage = 1, ros_S
    DO WHILE (Singular)
 
   !  ~~~>    Construct Ghimj = 1/(H*gam) -  Jac0
-#ifdef FULL_ALGEBRA    
-  !       CALL WCOPY(NVAR*NVAR,Jac0,1,Ghimj,1)
-     Ghimj(1:NVAR,1:NVAR) = JAC0(1:NVAR,1:NVAR)
-  !       CALL WSCAL(NVAR*NVAR,(- ONE),Ghimj,1)
-     Ghimj(1:NVAR,1:NVAR) = (- ONE) *Ghimj(1:NVAR,1:NVAR)
-     ghinv = ONE/(Direction*H*gam)
-     DO i=1,NVAR
-       Ghimj(i,i) = Ghimj(i,i)+ ghinv
-     END DO
-#else
   !       CALL WCOPY(LU_NONZERO,Jac0,1,Ghimj,1)
      Ghimj(1:LU_NONZERO) = JAC0(1:LU_NONZERO)
   !       CALL WSCAL(LU_NONZERO,(- ONE),Ghimj,1)
@@ -4962,7 +4814,6 @@ Stage: DO istage = 1, ros_S
      DO i=1,NVAR
        Ghimj(LU_DIAG(i))= Ghimj(LU_DIAG(i))+ ghinv
      END DO
-#endif   
   !  ~~~>    Compute LU decomposition
      CALL ros_Decomp( Ghimj, Pivot, ising)
      IF (ising == 0) THEN
@@ -4996,12 +4847,8 @@ Stage: DO istage = 1, ros_S
   !  ~~~> Output variables
    INTEGER, INTENT(OUT) :: Pivot(NVAR), ising
 
-#ifdef FULL_ALGEBRA    
-   CALL  DGETRF( NVAR, NVAR, A, NVAR, Pivot, ising)
-#else   
    CALL KppDecomp(A, ising)
    Pivot(1) = 1
-#endif
    Ndec = Ndec +  1
 
   END SUBROUTINE ros_Decomp
@@ -5018,11 +4865,8 @@ Stage: DO istage = 1, ros_S
   !  ~~~> InOut variables
    REAL(kind=dp), INTENT(INOUT) :: b(NVAR)
 
-#ifdef FULL_ALGEBRA    
-   CALL  DGETRS( 'N',NVAR ,1,A,NVAR,Pivot,b,NVAR,0)
-#else   
+  
    CALL KppSolve( A, b)
-#endif
 
    Nsol = Nsol+ 1
 
@@ -5454,34 +5298,15 @@ SUBROUTINE JacTemplate( T, Y, Jcb)
   !  ~~~> Input variables
     REAL(kind=dp) :: T, Y(NVAR)
   !  ~~~> Output variables
-#ifdef FULL_ALGEBRA    
-    REAL(kind=dp) :: JV(LU_NONZERO), Jcb(NVAR,NVAR)
-#else
     REAL(kind=dp) :: Jcb(LU_NONZERO)
-#endif   
   !  ~~~> Local variables
     REAL(kind=dp) :: Told
-#ifdef FULL_ALGEBRA    
-    INTEGER :: i, j
-#endif   
 
     Told = TIME
     TIME = T
   !      CALL Update_SUN()
   !      CALL Update_RCONST()
-#ifdef FULL_ALGEBRA    
-    CALL Jac_SP(Y, FIX, RCONST, JV)
-    DO j=1,NVAR
-      DO i=1,NVAR
-         Jcb(i,j) = 0.0d0
-      END DO
-    END DO
-    DO i=1,LU_NONZERO
-       Jcb(LU_IROW(i),LU_ICOL(i))= JV(i)
-    END DO
-#else
     CALL Jac_SP( Y, FIX, RCONST, Jcb)
-#endif   
     TIME = Told
 
     Njac = Njac+ 1
@@ -5517,86 +5342,6 @@ END SUBROUTINE JacTemplate
 
  END SUBROUTINE Update_SUN
  
-SUBROUTINE error_output(C,ierr,PE)
-
-   !  must be set in module header: USE messy_main_tools,      ONLY: str
-
-
-  INTEGER, INTENT(IN) :: ierr
-  INTEGER, INTENT(IN) :: PE
-  REAL(dp), DIMENSION(:),INTENT(IN) :: C
-
-  INTEGER,SAVE :: NUM =0
-  INTEGER :: iou
-  INTEGER :: i
-
-  CHARACTER(LEN=250)  :: filename
-  CHARACTER(LEN=1000) :: strnum
-  CHARACTER(LEN=1000) :: strPE
-  CHARACTER(256)      :: info
-
-  LOGICAL             :: opened
-  IF (ierr >= 0) RETURN
-
-  NUM = NUM + 1
-
-  strnum=str(NUM)
-  strPE=str(PE)
-
-  WRITE(filename,*) 'mecca_PE'//TRIM(STRPE)//'_'//TRIM(STRNUM)//'.txt'
-
-  iou = 0
-  DO i=100,200
-     INQUIRE(unit=i,opened=opened)
-     IF (.NOT.opened) THEN
-        iou = i
-        EXIT
-     END IF
-  END DO
-
-  IF (iou==0) THEN
-     WRITE(info,'(a,i2.2,a,i2.2,a)') &
-          'No unit in range < 100 : 200 > free.'
-     RETURN
-  ENDIF
-
-  OPEN(IOU,FILE =TRIM(ADJUSTL(filename))&
-       ,STATUS='NEW',ACTION= 'WRITE')
-
-   !  ERROR STATUS
-  WRITE(IOU,*) 'KPP ERRORSTATUS IERR:'
-  WRITE(IOU,*)IERR
-
-   !  SPECIES NAME
-  WRITE(IOU,*) 'SELECTED MECHANISM'
-  WRITE(IOU,*)WANTED
-  WRITE(IOU,*)
-
-  WRITE(IOU,*) 'NUMBER OF SPECIES:'
-  WRITE(IOU,*)NSPEC
-  WRITE(IOU,*)
-  WRITE(IOU,*)  'NAMES OF SPECIES:'
-  DO i=1,NSPEC
-  WRITE(IOU,*) SPC_NAMES(i)
-  ENDDO
-  WRITE(IOU,*)
-
-   !  CONCENTRATIONS
-  WRITE(IOU,*) 'concentrations (molec/cm^3(air) before KPP'
-  DO i=1,NSPEC
-     WRITE(IOU,*)C(i)
-  ENDDO
-  WRITE(IOU,*)
-
-   !  rates
-  WRITE(IOU,*) 'rate contants'
-  DO i=1,NREACT
-     WRITE(IOU,*)RCONST(i)
-  ENDDO
-  WRITE(IOU,*)
-  CLOSE(IOU)
-
-END SUBROUTINE error_output
  
   SUBROUTINE KppDecomp( JVS,IER)                                     
   ! ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 
@@ -7227,9 +6972,6 @@ SUBROUTINE kpp_integrate (time_step_len,Conc,ierrf,xNacc,xNrej,istatus,l_debug,P
     CALL integrate(0._dp,dt,icntrl,rcntrl,istatus_u = istatus_u,ierr_u=ierr_u)
                        
                                                                     
-    IF (PRESENT(l_debug) .AND. PRESENT(PE)) THEN                       
-      IF (l_debug) CALL error_output(Conc(is,:),ierr_u,PE)           
-    ENDIF           
     Conc(is,:) = C(:)                                                 
 
     if(Present(ierrf))    ierrf(is) = IERR_U                      
@@ -7271,6 +7013,8 @@ SUBROUTINE kpp_integrate (time_step_len,Conc,ierrf,xNacc,xNrej,istatus,l_debug,P
 END SUBROUTINE kpp_integrate
  
    
+
+
 
 
 end module messy_mecca_kpp
