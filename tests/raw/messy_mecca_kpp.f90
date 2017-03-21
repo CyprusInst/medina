@@ -42,7 +42,7 @@ Module messy_mecca_kpp
  
   PUBLIC :: Initialize,Integrate,Update_RCONST,initialize_indexarrays
   PUBLIC :: kpp_integrate
-  PUBLIC :: initialize_kpp_ctrl
+  PUBLIC :: kpp_integrate_init
 
 ! END OF MODULE HEADER TEMPLATE
                                                                  
@@ -51,6 +51,7 @@ Module messy_mecca_kpp
   logical,parameter           :: L_VECTOR=.FALSE.            
   integer,parameter           :: I_LU_DI = 1
   integer,parameter           :: VL_DIM=1
+  integer,parameter           :: VL_GLOBAL=5760
   integer                     :: vl                              
                                                                  
   integer                     :: VL_glo                          
@@ -89,8 +90,6 @@ Module messy_mecca_kpp
   !          R. Sander, Max- Planck Institute for Chemistry, Mainz, Germany
   !   
   !   File                 : messy_mecca_kpp_Parameters.f90
-  !   Time                 : Thu Mar 16 10:17:53 2017
-  !   Working directory    : /gpfs/h/malvanos/work/tmp/messy_2.52/messy/tools/kp4/tmp_mecca
   !   Equation file        : messy_mecca_kpp.kpp
   !   Output root filename : messy_mecca_kpp
   !   
@@ -754,8 +753,6 @@ Module messy_mecca_kpp
   !          R. Sander, Max- Planck Institute for Chemistry, Mainz, Germany
   !   
   !   File                 : messy_mecca_kpp_Global.f90
-  !   Time                 : Thu Mar 16 10:17:53 2017
-  !   Working directory    : /gpfs/h/malvanos/work/tmp/messy_2.52/messy/tools/kp4/tmp_mecca
   !   Equation file        : messy_mecca_kpp.kpp
   !   Output root filename : messy_mecca_kpp
   !   
@@ -784,7 +781,7 @@ Module messy_mecca_kpp
   !   SUN -  Sunlight intensity between [0,1]
   REAL(kind=dp) :: SUN
   !   TEMP -  Temperature
-  REAL(dp),dimension(:),allocatable             :: TEMP
+  REAL(dp)  :: TEMP(5760)
   !   TSTART -  Integration start time
   REAL(kind=dp) :: TSTART
   !   TEND -  Integration end time
@@ -806,7 +803,7 @@ Module messy_mecca_kpp
 
    !  MECCA info from xmecca:
   CHARACTER(LEN=*), PUBLIC, PARAMETER :: &
-    timestamp            = 'xmecca was run on 2017-03-16 at 10:17:41 by malvanos on machine login1.cytera.cyi.ac.cy',&
+    timestamp            = 'xmecca was run on 2017-03-16 at 10:17:41 by malvanos on machine xyz',&
     batchfile            = 'MY_CCMI-sens-01.bat',&
     gas_spc_file         = '-rw------- 1 malvanos eewrc 38113 Mar 12  2015 gas.spc',&
     aqueous_spc_file     = '-rw------- 1 malvanos eewrc 8444 Apr 19  2010 aqueous.spc',&
@@ -1004,8 +1001,8 @@ Module messy_mecca_kpp
    !      recalculating cair inside KPP)
    !  -  qqq describe potential KP4 incompatibility here...
    !  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-  REAL(dp),dimension(:),allocatable             :: cair
-  REAL(dp),dimension(:),allocatable             :: press
+  REAL(dp)             :: cair(VL_GLOBAL)
+  REAL(dp)             :: press(VL_GLOBAL)
    !  mz_ab_20101119+ 
   REAL(dp),dimension(:),allocatable             :: temp_ion
   REAL(dp),dimension(:),allocatable             :: temp_elec
@@ -1024,7 +1021,8 @@ Module messy_mecca_kpp
 !KPPPP_DIRECTIVE vector variable definition end
   INTEGER, PUBLIC  :: xnom7sulf = 1  !  = 1- xm7sulf
 !KPPPP_DIRECTIVE vector variable definition start
-  REAL(dp),dimension(:,:),allocatable           :: jx
+
+  REAL(dp),dimension(VL_GLOBAL,NSPEC) :: jx
 !KPPPP_DIRECTIVE vector variable definition end
    !  iht_ = index of troposheric heterogeneous reactions
   INTEGER, PARAMETER, PUBLIC :: &
@@ -1079,7 +1077,7 @@ Module messy_mecca_kpp
     mecca_spc_file_sum = '60074    48',&
     mecca_eqn_file_sum = '32030    39',&
     kppoption          = '4',&
-    KPP_HOME           = '/gpfs/h/malvanos/work/tmp/messy_2.52/messy/tools/kpp',&
+    KPP_HOME           = '/messy/tools/kpp',&
     KPP_version        = '2.2.1_rs5',&
     integr             = 'rosenbrock_mz'
 
@@ -1102,8 +1100,6 @@ Module messy_mecca_kpp
   !          R. Sander, Max- Planck Institute for Chemistry, Mainz, Germany
   !   
   !   File                 : messy_mecca_kpp_JacobianSP.f90
-  !   Time                 : Thu Mar 16 10:17:53 2017
-  !   Working directory    : /gpfs/h/malvanos/work/tmp/messy_2.52/messy/tools/kp4/tmp_mecca
   !   Equation file        : messy_mecca_kpp.kpp
   !   Output root filename : messy_mecca_kpp
   !   
@@ -1238,8 +1234,6 @@ Module messy_mecca_kpp
   !          R. Sander, Max- Planck Institute for Chemistry, Mainz, Germany
   !   
   !   File                 : messy_mecca_kpp_Monitor.f90
-  !   Time                 : Thu Mar 16 10:17:53 2017
-  !   Working directory    : /gpfs/h/malvanos/work/tmp/messy_2.52/messy/tools/kp4/tmp_mecca
   !   Equation file        : messy_mecca_kpp.kpp
   !   Output root filename : messy_mecca_kpp
   !   
@@ -1394,7 +1388,6 @@ Module messy_mecca_kpp
 
   !   End INLINED global variables
 
-
 ! Automatic generated PUBLIC Statements for ip_ and ihs_ variables 
  
 ! Automatic generated PUBLIC Statements for ip_ and ihs_ variables 
@@ -1428,14 +1421,10 @@ Module messy_mecca_kpp
   !          R. Sander, Max- Planck Institute for Chemistry, Mainz, Germany
   !   
   !   File                 : messy_mecca_kpp_Initialize.f90
-  !   Time                 : Thu Mar 16 10:17:53 2017
-  !   Working directory    : /gpfs/h/malvanos/work/tmp/messy_2.52/messy/tools/kp4/tmp_mecca
   !   Equation file        : messy_mecca_kpp.kpp
   !   Output root filename : messy_mecca_kpp
   !   
   !   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-
 
 
 
@@ -1454,8 +1443,6 @@ Module messy_mecca_kpp
   !          R. Sander, Max- Planck Institute for Chemistry, Mainz, Germany
   !   
   !   File                 : messy_mecca_kpp_Integrator.f90
-  !   Time                 : Thu Mar 16 10:17:53 2017
-  !   Working directory    : /gpfs/h/malvanos/work/tmp/messy_2.52/messy/tools/kp4/tmp_mecca
   !   Equation file        : messy_mecca_kpp.kpp
   !   Output root filename : messy_mecca_kpp
   !   
@@ -1508,8 +1495,6 @@ Module messy_mecca_kpp
   !          R. Sander, Max- Planck Institute for Chemistry, Mainz, Germany
   !   
   !   File                 : messy_mecca_kpp_LinearAlgebra.f90
-  !   Time                 : Thu Mar 16 10:17:53 2017
-  !   Working directory    : /gpfs/h/malvanos/work/tmp/messy_2.52/messy/tools/kp4/tmp_mecca
   !   Equation file        : messy_mecca_kpp.kpp
   !   Output root filename : messy_mecca_kpp
   !   
@@ -1535,8 +1520,6 @@ Module messy_mecca_kpp
   !          R. Sander, Max- Planck Institute for Chemistry, Mainz, Germany
   !   
   !   File                 : messy_mecca_kpp_Jacobian.f90
-  !   Time                 : Thu Mar 16 10:17:53 2017
-  !   Working directory    : /gpfs/h/malvanos/work/tmp/messy_2.52/messy/tools/kp4/tmp_mecca
   !   Equation file        : messy_mecca_kpp.kpp
   !   Output root filename : messy_mecca_kpp
   !   
@@ -1562,8 +1545,6 @@ Module messy_mecca_kpp
   !          R. Sander, Max- Planck Institute for Chemistry, Mainz, Germany
   !   
   !   File                 : messy_mecca_kpp_Function.f90
-  !   Time                 : Thu Mar 16 10:17:53 2017
-  !   Working directory    : /gpfs/h/malvanos/work/tmp/messy_2.52/messy/tools/kp4/tmp_mecca
   !   Equation file        : messy_mecca_kpp.kpp
   !   Output root filename : messy_mecca_kpp
   !   
@@ -1591,14 +1572,10 @@ Module messy_mecca_kpp
   !          R. Sander, Max- Planck Institute for Chemistry, Mainz, Germany
   !   
   !   File                 : messy_mecca_kpp_Rates.f90
-  !   Time                 : Thu Mar 16 10:17:53 2017
-  !   Working directory    : /gpfs/h/malvanos/work/tmp/messy_2.52/messy/tools/kp4/tmp_mecca
   !   Equation file        : messy_mecca_kpp.kpp
   !   Output root filename : messy_mecca_kpp
   !   
   !   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-
 
 
 
@@ -1617,7 +1594,6 @@ Module messy_mecca_kpp
   !          R. Sander, Max- Planck Institute for Chemistry, Mainz, Germany
   !   
   !   File                 : messy_mecca_kpp_Util.f90
-  !   Time                 : Thu Mar 16 10:17:53 2017
   !   Equation file        : messy_mecca_kpp.kpp
   !   Output root filename : messy_mecca_kpp
   !   
@@ -1639,7 +1615,6 @@ Module messy_mecca_kpp
   REAL(DP), DIMENSION(NKPPCTRL), PUBLIC     :: rcntrl = 0.0_dp
   REAL(DP), DIMENSION(NMAXFIXSTEPS), PUBLIC :: t_steps = 0.0_dp
 
-   !  END HEADER MODULE initialize_kpp_ctrl_template
 
  
 ! Interface Block 
@@ -6907,13 +6882,13 @@ END SUBROUTINE JacTemplate
     return                                                            
                                                                       
   End SUBROUTINE KppDecomp                                            
- 
+
 SUBROUTINE kpp_integrate (time_step_len,Conc,ierrf,xNacc,xNrej,istatus,l_debug,PE) 
                                                                     
   IMPLICIT NONE                                                     
                                                                     
   REAL(dp),INTENT(IN)                   :: time_step_len           
-  REAL(dp),INTENT(INOUT),dimension(:,:) :: Conc                    
+  REAL(dp),INTENT(INOUT),dimension(VL,NSPEC) :: Conc                    
   INTEGER, INTENT(OUT),OPTIONAL        :: ierrf(:)                
   INTEGER, INTENT(OUT),OPTIONAL        :: xNacc(:)                
   INTEGER, INTENT(OUT),OPTIONAL        :: xNrej(:)                
@@ -6944,9 +6919,6 @@ SUBROUTINE kpp_integrate (time_step_len,Conc,ierrf,xNacc,xNrej,istatus,l_debug,P
   if (present (istatus)) istatus = 0                              
 
 
-  allocate(xNacc_u(VL_GLO))
-  allocate(xNrej_u(VL_GLO))
-  allocate(ierr_u2(VL_GLO))
 
 
   sizes(1) = VL_glo
@@ -6985,34 +6957,31 @@ SUBROUTINE kpp_integrate (time_step_len,Conc,ierrf,xNacc,xNrej,istatus,l_debug,P
   END DO  
 
 ! Deallocate input arrays                                           
-                                                                    
-  if (allocated(TEMP))   deallocate(TEMP)   
-  if (allocated(cair))   deallocate(cair)   
-  if (allocated(press))   deallocate(press)   
-  if (allocated(temp_ion))   deallocate(temp_ion)   
-  if (allocated(temp_elec))   deallocate(temp_elec)   
-  if (allocated(xaer))   deallocate(xaer)   
-  if (allocated(cvfac))   deallocate(cvfac)   
-  if (allocated(lwc))   deallocate(lwc)   
-  if (allocated(k_exf))   deallocate(k_exf)   
-  if (allocated(k_exb))   deallocate(k_exb)   
-  if (allocated(k_exf_N2O5))   deallocate(k_exf_N2O5)   
-  if (allocated(k_exf_ClNO3))   deallocate(k_exf_ClNO3)   
-  if (allocated(k_exf_BrNO3))   deallocate(k_exf_BrNO3)   
-  if (allocated(jx))   deallocate(jx)   
-  if (allocated(khet_Tr))   deallocate(khet_Tr)   
-  if (allocated(khet_St))   deallocate(khet_St)   
-  if (allocated(mcexp))   deallocate(mcexp)   
+      
 
-  deallocate(xNacc_u)
-  deallocate(xNrej_u)
-  deallocate(ierr_u2)      
-  data_loaded = .false.                                             
                                                                     
   return                                                            
 END SUBROUTINE kpp_integrate
  
-   
+ 
+SUBROUTINE kpp_integrate_init (VL, tmp, ress, air, j) 
+                                                                    
+  IMPLICIT NONE                                                     
+                                                                    
+  INTEGER, INTENT(IN)         :: VL
+  REAL(dp), INTENT(IN)             :: TMP(VL_GLOBAL)
+  REAL(dp), INTENT(IN)             :: RESS(VL_GLOBAL)
+  REAL(dp), INTENT(IN)             :: AIR(VL_GLOBAL)
+  REAL(dp), INTENT(IN)             :: j(VL_GLOBAL,NSPEC)
+
+  VL_glo = VL
+  TEMP = tmp
+  PRESS = RESS
+  CAIR = AIR
+  jx = j 
+ 
+
+END SUBROUTINE kpp_integrate_init
 
 
 

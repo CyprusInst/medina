@@ -70,6 +70,7 @@ echo "====> STEP 5: Compiling original version in FORTRAN..."
 
 (
 set -x
+cp raw/*f90 ./messy/fortran
 cd messy/fortran
 gfortran -c messy_cmn_photol_mem.f90
 gfortran -c messy_main_constants_mem.f90
