@@ -1030,7 +1030,7 @@ Module messy_mecca_kpp
     iht_RGM       = 4
   INTEGER, PARAMETER, PUBLIC :: IHT_MAX = 4
 !KPPPP_DIRECTIVE vector variable definition start
-  REAL(dp),dimension(:,:),allocatable           :: khet_Tr
+  REAL(dp)           :: khet_Tr(VL_GLOBAL,NSPEC)
 !KPPPP_DIRECTIVE vector variable definition end
    !  ihs_ = index of stratospheric heterogeneous reactions
    !  (must be the same as in messy_msbm.f90 !)
@@ -6888,11 +6888,11 @@ SUBROUTINE kpp_integrate (time_step_len,Conc,ierrf,xNacc,xNrej,istatus,l_debug,P
   IMPLICIT NONE                                                     
                                                                     
   REAL(dp),INTENT(IN)                   :: time_step_len           
-  REAL(dp),INTENT(INOUT),dimension(VL,NSPEC) :: Conc                    
-  INTEGER, INTENT(OUT),OPTIONAL        :: ierrf(:)                
-  INTEGER, INTENT(OUT),OPTIONAL        :: xNacc(:)                
-  INTEGER, INTENT(OUT),OPTIONAL        :: xNrej(:)                
-  INTEGER, INTENT(INOUT),OPTIONAL      :: istatus(:)              
+  REAL(dp),INTENT(INOUT),dimension(VL_GLOBAL,NSPEC) :: Conc                    
+  INTEGER, INTENT(OUT),OPTIONAL        :: ierrf                
+  INTEGER, INTENT(OUT),OPTIONAL        :: xNacc(VL_GLOBAL)                
+  INTEGER, INTENT(OUT),OPTIONAL        :: xNrej(VL_GLOBAL)                
+  INTEGER, INTENT(INOUT),OPTIONAL      :: istatus(20)              
   INTEGER, INTENT(IN),OPTIONAL         :: PE                      
   LOGICAL, INTENT(IN),OPTIONAL         :: l_debug                 
   
@@ -6915,9 +6915,7 @@ SUBROUTINE kpp_integrate (time_step_len,Conc,ierrf,xNacc,xNrej,istatus,l_debug,P
 
   character(len=10) :: filename
   CHARACTER(LEN=3000) :: rowfmt
-                                                                    
-  if (present (istatus)) istatus = 0                              
-
+             
 
 
 
@@ -6926,7 +6924,6 @@ SUBROUTINE kpp_integrate (time_step_len,Conc,ierrf,xNacc,xNrej,istatus,l_debug,P
   sizes(3) = size(khet_tr,2)
   sizes(4) = size(jx,2)
   roundoff = WLAMCH('E')
-
 
 
   DO k=1,VL_glo,VL_DIM                                              
@@ -6946,13 +6943,6 @@ SUBROUTINE kpp_integrate (time_step_len,Conc,ierrf,xNacc,xNrej,istatus,l_debug,P
                                                                     
     Conc(is,:) = C(:)                                                 
 
-    if(Present(ierrf))    ierrf(is) = IERR_U                      
-    if(Present(xNacc))    xNacc(is) = istatus_u(4)                
-    if(Present(xNrej))    xNrej(is) = istatus_u(5)                
-                                                                    
-    if (present (istatus)) then                                   
-      istatus(1:8) = istatus(1:8) + istatus_u(1:8)                 
-    end if             
 
   END DO  
 
@@ -6964,21 +6954,30 @@ SUBROUTINE kpp_integrate (time_step_len,Conc,ierrf,xNacc,xNrej,istatus,l_debug,P
 END SUBROUTINE kpp_integrate
  
  
-SUBROUTINE kpp_integrate_init (VL, tmp, ress, air, j) 
+SUBROUTINE kpp_integrate_init (VL, tmp, ress, air, j, khet, tol1, tol2, ctrl) 
                                                                     
   IMPLICIT NONE                                                     
                                                                     
   INTEGER, INTENT(IN)         :: VL
+  INTEGER, INTENT(IN)         :: ctrl(20)
   REAL(dp), INTENT(IN)             :: TMP(VL_GLOBAL)
   REAL(dp), INTENT(IN)             :: RESS(VL_GLOBAL)
   REAL(dp), INTENT(IN)             :: AIR(VL_GLOBAL)
   REAL(dp), INTENT(IN)             :: j(VL_GLOBAL,NSPEC)
+  REAL(dp), INTENT(IN)             :: khet(VL_GLOBAL,NSPEC)
+  REAL(dp), INTENT(IN)             :: tol1(NVAR)
+  REAL(dp), INTENT(IN)             :: tol2(NVAR)
 
   VL_glo = VL
   TEMP = tmp
   PRESS = RESS
   CAIR = AIR
-  jx = j 
+  jx = j
+  khet_Tr = khet
+  atol = tol1
+  rtol = tol2
+  icntrl = ctrl
+  RCNTRL = 0
  
 
 END SUBROUTINE kpp_integrate_init

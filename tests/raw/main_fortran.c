@@ -120,87 +120,61 @@ double khet_tr[VL_GLO*NSPEC] = {
 };
 
 
-//extern "C"
-//{
-    //          ,-- 2 Leading underscores to start
-    //          | ,-- then the module name
-    //          | |     ,-- then _MOD_
-    //          | |     |    ,-- then the subroutine name
-    //          V V     V    V
-    extern void __messy_mecca_kpp_MOD_kpp_integrate();
-//} __attribute__((stdcall);
+//          ,-- 2 Leading underscores to start
+//          | ,-- then the module name
+//          | |     ,-- then _MOD_
+//          | |     |    ,-- then the subroutine name
+//          V V     V    V
+extern void __messy_mecca_kpp_MOD_kpp_integrate();
 
+
+#define INIT_TABLES(){\
+    for (i=0;i<VL_GLO;i++){\
+        temp[i] = 240.995971972245;\
+        press[i] = 0.994591236114502; \
+        cair[i] = 298914285136738.0;\
+        khet_tr[i*4 + 0] = 7.408371201503456E-008;\
+        khet_tr[i*4 + 1] = 4.849455570110968E-007;\
+        khet_tr[i*4 + 2] =  0.000000000000000E+000;  \
+        khet_tr[i*4 + 3] = 2.718003287797325E-007;\
+    }\
+    for (i=0;i<NSPEC;i++){\
+        abstol[i] = 10.0; \
+        reltol[i] = 0.5; \
+    }\
+    for (i=0;i<VL_GLO;i++){\
+        for (j=0;j<NSPEC;j++){\
+              conc[j*VL_GLO + i] = conc_cell[j];\
+        }\
+    }\
+    __messy_mecca_kpp_MOD_kpp_integrate_init( &vl_glo, temp, press, cair, jx, khet_tr, abstol, reltol, icntrl);\
+}
 
 
 int main(int argc, char **argv){
     
     int n = 1; // proccess element
-   
-
-
-    int istatus;
+    int istatus[20];
     int ierr;
     int i,j;
     int PE = 0;
     int l_debug = 0;
     int vl_glo = VL_GLO;
-
     int sizes[4] = {VL_GLO,NSPEC,NSPEC,NREACT}; 
-    int icntrl[4] = {0,0,2,0};
-
+    int icntrl[20] = {0,0,2,0};
     double roundoff = 2.220446049250313E-016;
     double timestep = 720.0;
 
-    for (i=0;i<VL_GLO;i++){
-        for (j=0;j<NSPEC;j++){
-              conc[i*NSPEC + j] = conc_cell[j];
-        }
-        temp[i] = 240.995971972245;
-        press[i] = 0.994591236114502; 
-        cair[i] = 298914285136738.0;
-
-        khet_tr[i*4 + 0] = 7.408371201503456E-008;
-        khet_tr[i*4 + 1] = 4.849455570110968E-007;
-        khet_tr[i*4 + 2] =  0.000000000000000E+000;  
-        khet_tr[i*4 + 3] = 2.718003287797325E-007;
-    }
-        
-    for (i=0;i<NSPEC;i++){
-        abstol[i] = 10.0; 
-        reltol[i] = 0.5; 
-    }
-
-
-    //cudaDeviceSetCacheConfig(cudaFuncCachePreferL1); 
-
-    //SUBROUTINE kpp_integrate (time_step_len,Conc,ierrf,xNacc,xNrej,istatus,l_debug,PE) 
-    //kpp_integrate_cuda_( &n, sizes, &timestep, conc, temp, press, cair, khet_st, khet_tr, jx, abstol, reltol, &ierr, &istatus, xNacc, xNrej, &roundoff, icntrl);
-
-
-
-
-
-
-    for (i=0;i<VL_GLO;i++){
-        for (j=0;j<NSPEC;j++){
-              //conc[i*NSPEC + j] = j;//conc_cell[j];
-              conc[j*VL_GLO + i] = conc_cell[j];
-        }
-    }
-        
-    __messy_mecca_kpp_MOD_kpp_integrate_init( &vl_glo, temp, press, cair,jx);
-
-
-    __messy_mecca_kpp_MOD_kpp_integrate( &timestep, conc, &ierr, xNacc, xNrej, istatus, &l_debug, &PE);
-    exit(0);
-
-
     struct timeval start, end;
+
+
+
 
     if (argc==2){
         icntrl[2] = atoi(argv[1]);
+        INIT_TABLES()
         gettimeofday(&start, NULL);
-        //kpp_integrate_cuda_( &n, sizes, &timestep, conc, temp, press, cair, khet_st, khet_tr, jx, abstol, reltol, &ierr, &istatus, xNacc, xNrej, &roundoff, icntrl);
+        __messy_mecca_kpp_MOD_kpp_integrate( &timestep, conc, &ierr, xNacc, xNrej, istatus, &l_debug, &PE);
         gettimeofday(&end, NULL);
         printf("%d: %ld (ms)\n", icntrl[2],((end.tv_sec * 1000 + end.tv_usec/1000) - (start.tv_sec * 1000 + start.tv_usec/1000)));
         return 0;
@@ -212,27 +186,20 @@ int main(int argc, char **argv){
 
 restart:
 
-    for (i=0;i<VL_GLO;i++){
-        for (j=0;j<NSPEC;j++){
-              conc[i*NSPEC + j] = conc_cell[j];
-        }
-    }
-        
+    INIT_TABLES()
 
     gettimeofday(&start, NULL);
 
     for (i=0;i<1;i++){
-//        kpp_integrate_cuda_( &n, sizes, &timestep, conc, temp, press, cair, khet_st, khet_tr, jx, abstol, reltol, &ierr, &istatus, xNacc, xNrej, &roundoff, icntrl);
+        __messy_mecca_kpp_MOD_kpp_integrate( &timestep, conc, &ierr, xNacc, xNrej, istatus, &l_debug, &PE);
 
     }
-      gettimeofday(&end, NULL);
-      printf("%d: %ld (ms)\n", icntrl[2],((end.tv_sec * 1000 + end.tv_usec/1000)
-                  - (start.tv_sec * 1000 + start.tv_usec/1000)));
+    gettimeofday(&end, NULL);
+    printf("%d: %ld (ms)\n", icntrl[2],((end.tv_sec * 1000 + end.tv_usec/1000)
+                - (start.tv_sec * 1000 + start.tv_usec/1000)));
     icntrl[2]++;
     if ( icntrl[2] >5) return;
     goto restart;
-
-
 
 
 
