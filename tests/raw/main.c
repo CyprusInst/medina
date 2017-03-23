@@ -118,6 +118,23 @@ double khet_tr[VL_GLO*NSPEC] = {
 };
 
 
+#define COPY_DATA()\
+    for (i=0;i<VL_GLO;i++){\
+        for (j=0;j<NSPEC;j++){\
+              conc[j*VL_GLO + i] = conc_cell[j];\
+        }\
+    }
+
+
+#define PRINT_DATA()\
+        printf("Results:");    \
+        for (j=0;j<NSPEC;j++){\
+            printf("   %.12e  ",conc[j*VL_GLO]);\
+        }\
+        printf("\n");    
+
+
+
 int main(int argc, char **argv){
     
     int n = 1; // proccess element
@@ -129,7 +146,7 @@ int main(int argc, char **argv){
     int i,j;
 
     int sizes[4] = {VL_GLO,NSPEC,NSPEC,NREACT}; 
-    int icntrl[4] = {0,0,2,0};
+    int icntrl[20] = {0,0,2,0};
 
     double roundoff = 2.220446049250313E-016;
     double timestep = 720.0;
@@ -147,7 +164,8 @@ int main(int argc, char **argv){
         khet_tr[i*4 + 2] =  0.000000000000000E+000;  
         khet_tr[i*4 + 3] = 2.718003287797325E-007;
     }
-        
+       
+
     for (i=0;i<NSPEC;i++){
         abstol[i] = 10.0; 
         reltol[i] = 0.5; 
@@ -156,14 +174,12 @@ int main(int argc, char **argv){
 
     cudaDeviceSetCacheConfig(cudaFuncCachePreferL1); 
 
+    COPY_DATA();
+
     kpp_integrate_cuda_( &n, sizes, &timestep, conc, temp, press, cair, khet_st, khet_tr, jx, abstol, reltol, &ierr, &istatus, xNacc, xNrej, &roundoff, icntrl);
 
 
-    for (i=0;i<VL_GLO;i++){
-        for (j=0;j<NSPEC;j++){
-              conc[i*NSPEC + j] = conc_cell[j];
-        }
-    }
+
         
 
 
@@ -173,10 +189,13 @@ int main(int argc, char **argv){
 
     if (argc==2){
         icntrl[2] = atoi(argv[1]);
+        COPY_DATA()
         gettimeofday(&start, NULL);
         kpp_integrate_cuda_( &n, sizes, &timestep, conc, temp, press, cair, khet_st, khet_tr, jx, abstol, reltol, &ierr, &istatus, xNacc, xNrej, &roundoff, icntrl);
         gettimeofday(&end, NULL);
         printf("%d: %ld (ms)\n", icntrl[2],((end.tv_sec * 1000 + end.tv_usec/1000) - (start.tv_sec * 1000 + start.tv_usec/1000)));
+        PRINT_DATA();
+
         return 0;
     }
 
@@ -186,13 +205,9 @@ int main(int argc, char **argv){
 
 restart:
 
-    for (i=0;i<VL_GLO;i++){
-        for (j=0;j<NSPEC;j++){
-              conc[i*NSPEC + j] = conc_cell[j];
-        }
-    }
-        
 
+
+    COPY_DATA()
     gettimeofday(&start, NULL);
 
     for (i=0;i<1;i++){
@@ -200,6 +215,7 @@ restart:
 
     }
       gettimeofday(&end, NULL);
+      PRINT_DATA();
       printf("%d: %ld (ms)\n", icntrl[2],((end.tv_sec * 1000 + end.tv_usec/1000)
                   - (start.tv_sec * 1000 + start.tv_usec/1000)));
     icntrl[2]++;
@@ -211,6 +227,8 @@ restart:
 
 
 }
+
+
 
 
 

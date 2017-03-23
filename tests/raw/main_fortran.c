@@ -8,6 +8,8 @@
  *
  * */
 
+#include <stdio.h>
+#include <stdlib.h>
 #include <time.h>
 #include <sys/time.h>
 
@@ -122,11 +124,11 @@ double khet_tr[VL_GLO*NSPEC] = {
 
 //          ,-- 2 Leading underscores to start
 //          | ,-- then the module name
-//          | |     ,-- then _MOD_
-//          | |     |    ,-- then the subroutine name
-//          V V     V    V
+//          | |               ,-- then _MOD_
+//          | |               |    ,-- then the subroutine name
+//          V V               V    V
 extern void __messy_mecca_kpp_MOD_kpp_integrate();
-
+extern void __messy_mecca_kpp_MOD_kpp_integrate_init();
 
 #define INIT_TABLES(){\
     for (i=0;i<VL_GLO;i++){\
@@ -149,6 +151,13 @@ extern void __messy_mecca_kpp_MOD_kpp_integrate();
     }\
     __messy_mecca_kpp_MOD_kpp_integrate_init( &vl_glo, temp, press, cair, jx, khet_tr, abstol, reltol, icntrl);\
 }
+
+#define PRINT_DATA()\
+        printf("Results:");    \
+        for (j=0;j<NSPEC;j++){\
+            printf("   %.12e  ",conc[j*VL_GLO]);\
+        }\
+        printf("\n");    
 
 
 int main(int argc, char **argv){
@@ -177,6 +186,7 @@ int main(int argc, char **argv){
         __messy_mecca_kpp_MOD_kpp_integrate( &timestep, conc, &ierr, xNacc, xNrej, istatus, &l_debug, &PE);
         gettimeofday(&end, NULL);
         printf("%d: %ld (ms)\n", icntrl[2],((end.tv_sec * 1000 + end.tv_usec/1000) - (start.tv_sec * 1000 + start.tv_usec/1000)));
+        PRINT_DATA();
         return 0;
     }
 
@@ -197,8 +207,11 @@ restart:
     gettimeofday(&end, NULL);
     printf("%d: %ld (ms)\n", icntrl[2],((end.tv_sec * 1000 + end.tv_usec/1000)
                 - (start.tv_sec * 1000 + start.tv_usec/1000)));
+
+    PRINT_DATA();
+
     icntrl[2]++;
-    if ( icntrl[2] >5) return;
+    if ( icntrl[2] >5) return 0;
     goto restart;
 
 
