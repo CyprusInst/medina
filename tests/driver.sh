@@ -5,10 +5,8 @@
 ##########################################
 
 
-echo "==============================="
-echo "==============================="
-echo "==============================="
-echo "====> STEP 1: Copying files..."
+echo "=============================================================="
+echo "=================> STEP 1: Copying files. <==================="
 
 (
 set -x
@@ -17,7 +15,7 @@ cp ../f2c_alpha.py  ./messy/util/
 cp ../kpp_integrate_cuda_prototype.cu  ./messy/util/
 )
 
-echo "====> STEP 2: Running script..."
+echo "====> STEP 2: Running script."
 
 (
 set -x
@@ -31,7 +29,7 @@ if [ $status == 1 ]; then
        exit -1
 fi
 
-echo "====> STEP 3: Compiling the output files..."
+echo "==========> STEP 3: Compiling the output files. <============="
 
 (
 set -x
@@ -45,7 +43,7 @@ if [ $status == 0 ]; then
        exit -1
 fi
 
-echo "====> STEP 4: Running the application..."
+echo "============> STEP 4: Running the application. <=============="
 
 
 (
@@ -53,40 +51,53 @@ set -x
 cat ./raw/main.c >> ./messy/smcl/messy_mecca_kpp_acc.cu
 cd messy/smcl
 nvcc -O1  messy_mecca_kpp_acc.cu  2>&1  | grep error
-./a.out
-cuda-memcheck ./a.out
+./a.out | grep -v "Results"
+cuda-memcheck ./a.out | grep -v "Results"
+./a.out | grep "Results" | sed -e "s/Results://g" > res_gpu.txt
 )
 
 status=$?
-if [ $status == 0 ]; then
+if [ $status == 1 ]; then
        echo "NVCC - Unsuccessful"
        exit -1
 fi
 
 
 
-echo "====> STEP 5: Compiling original version in FORTRAN..."
+echo "======> STEP 5: Compiling original version in FORTRAN. <======"
 
 
 (
 set -x
 cp raw/*f90 ./messy/fortran
+cp raw/main_fortran.c ./messy/fortran
 cd messy/fortran
-gfortran -c messy_cmn_photol_mem.f90
-gfortran -c messy_main_constants_mem.f90
-gfortran -c messy_mecca_kpp.f90
-gfortran -c main.f90
-./a.out
+gfortran -c messy_cmn_photol_mem.f90  2>&1  | grep error
+gfortran -c messy_main_constants_mem.f90  2>&1  | grep error
+gfortran -c messy_mecca_kpp.f90  2>&1  | grep error
+gcc      -c main_fortran.c  2>&1  | grep error
+gfortran -g *o  -lm
+./a.out | grep -v "Results"
+./a.out | grep "Results" | sed -e "s/Results://g" > res_fortran.txt
 )
 
-echo "====> STEP 6: Comparing the output results..."
 
-echo "====> STEP 7: Cleaning up the directories..."
-
+echo "==========> STEP 6: Comparing the output results. <==========="
 
 (
 set -x
+python compare.py ./messy/fortran/res_fortran.txt messy/smcl/res_gpu.txt | grep "Element\|<<<<<<===== WARNING"
+)
+
+echo "===========> STEP 7: Cleaning up the directories. <==========="
+
+
+exit 0
+(
+set -x
 cd messy/smcl/
+rm ./*
+cd messy/fortran/
 rm ./*
 cd ../util/
 rm ./*
