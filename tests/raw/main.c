@@ -207,19 +207,19 @@ restart:
 
 
 
-    COPY_DATA()
+    COPY_DATA();
     gettimeofday(&start, NULL);
 
-    for (i=0;i<1;i++){
-        kpp_integrate_cuda_( &n, sizes, &timestep, conc, temp, press, cair, khet_st, khet_tr, jx, abstol, reltol, &ierr, &istatus, xNacc, xNrej, &roundoff, icntrl);
+    kpp_integrate_cuda_( &n, sizes, &timestep, conc, temp, press, cair, khet_st, khet_tr, jx, abstol, reltol, &ierr, &istatus, xNacc, xNrej, &roundoff, icntrl);
 
-    }
-      gettimeofday(&end, NULL);
-      PRINT_DATA();
-      printf("%d: %ld (ms)\n", icntrl[2],((end.tv_sec * 1000 + end.tv_usec/1000)
-                  - (start.tv_sec * 1000 + start.tv_usec/1000)));
+    gettimeofday(&end, NULL);
+
+    PRINT_DATA();
+
+    printf("%d: %ld (ms)\n", icntrl[2],((end.tv_sec * 1000 + end.tv_usec/1000)
+                - (start.tv_sec * 1000 + start.tv_usec/1000)));
     icntrl[2]++;
-    if ( icntrl[2] >5) return;
+    if ( icntrl[2] >2) return;
     goto restart;
 
 

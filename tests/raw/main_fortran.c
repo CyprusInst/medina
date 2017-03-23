@@ -198,20 +198,19 @@ restart:
 
     INIT_TABLES()
 
-    gettimeofday(&start, NULL);
+        gettimeofday(&start, NULL);
 
-    for (i=0;i<1;i++){
-        __messy_mecca_kpp_MOD_kpp_integrate( &timestep, conc, &ierr, xNacc, xNrej, istatus, &l_debug, &PE);
+    __messy_mecca_kpp_MOD_kpp_integrate( &timestep, conc, &ierr, xNacc, xNrej, istatus, &l_debug, &PE);
 
-    }
     gettimeofday(&end, NULL);
+
     printf("%d: %ld (ms)\n", icntrl[2],((end.tv_sec * 1000 + end.tv_usec/1000)
                 - (start.tv_sec * 1000 + start.tv_usec/1000)));
 
     PRINT_DATA();
 
     icntrl[2]++;
-    if ( icntrl[2] >5) return 0;
+    if ( icntrl[2] >2) return 0;
     goto restart;
 
 

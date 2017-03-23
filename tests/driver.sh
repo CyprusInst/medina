@@ -92,12 +92,11 @@ python compare.py ./messy/fortran/res_fortran.txt messy/smcl/res_gpu.txt | grep 
 echo "===========> STEP 7: Cleaning up the directories. <==========="
 
 
-exit 0
 (
 set -x
 cd messy/smcl/
 rm ./*
-cd messy/fortran/
+cd ../fortran/
 rm ./*
 cd ../util/
 rm ./*
