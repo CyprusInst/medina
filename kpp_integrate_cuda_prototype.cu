@@ -378,9 +378,13 @@ __device__ int ros_Integrator(double * __restrict__ var, double * __restrict__ f
                 }
                 else if(ros_NewF[istage])
                 {
+                        for (int i=0; i<NVAR; i++){		
+                            varNew(index,i) = var(index,i);
+                        }
+
                     for (int j=0; j < (istage); j++){
                         for (int i=0; i<NVAR; i++){		
-                            varNew(index,i) = K(index,j,i)*ros_A[(istage)*(istage-1)/2 + j] + var(index,i);
+                            varNew(index,i) = K(index,j,i)*ros_A[(istage)*(istage-1)/2 + j]  + varNew(index,i);
                         }
                     }
                     Fun(varNew, fix, rconst, varNew, Nfun,VL_GLO); // FCN <- varNew / not overlap 
