@@ -15,7 +15,7 @@ cp ../f2c_alpha.py  ./messy/util/
 cp ../kpp_integrate_cuda_prototype.cu  ./messy/util/
 )
 
-echo "====> STEP 2: Running script."
+echo "=================> STEP 2: Running script. <=================="
 
 (
 set -x
