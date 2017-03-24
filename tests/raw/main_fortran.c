@@ -210,7 +210,7 @@ restart:
     PRINT_DATA();
 
     icntrl[2]++;
-    if ( icntrl[2] >2) return 0;
+    if ( icntrl[2] >5) return 0;
     goto restart;
 
 

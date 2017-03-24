@@ -219,7 +219,7 @@ restart:
     printf("%d: %ld (ms)\n", icntrl[2],((end.tv_sec * 1000 + end.tv_usec/1000)
                 - (start.tv_sec * 1000 + start.tv_usec/1000)));
     icntrl[2]++;
-    if ( icntrl[2] >2) return;
+    if ( icntrl[2] >5) return;
     goto restart;
 
 
