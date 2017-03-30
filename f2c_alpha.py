@@ -1135,11 +1135,11 @@ pass
 #########################################################################################################
 #########################################################################################################
 
-def add_cuda_compilation(file_specific,file_makefile):
+def add_cuda_compilation(file_specific,file_makefile,arch):
 
     file_makefile.seek(0)    
     out = "\nmessy_mecca_kpp_acc.o: messy_mecca_kpp_acc.cu specific.mk \n\
-\tnvcc  -v  --ptxas-options=-v   --ftz=false --prec-div=true --prec-sqrt=true --fmad=false    -O3  -g   -c  $<"
+\tnvcc  -v  --ptxas-options=-v  " + arch +"  --ftz=false --prec-div=true --prec-sqrt=true --fmad=false    -O3  -g   -c  $<"
     file_specific.write(out)
 
 
@@ -1172,13 +1172,59 @@ pass
 #########################################################################################################
 
 def print_warning():
-    print '\033[1m' + "\n##################################################################" 
-    print   "## WARNING!! ALPHA VERSION ! PLEASE REPORT TO PACKAGE MAINTAINERS ANY BUGS OR UNEXPECTED BEHAVIOUR.\n"
-    print   "##################################################################\n" 
+    print '\033[1m' + "\n####################################################################################################" 
+    print   "## WARNING!! ALPHA VERSION ! PLEASE REPORT TO PACKAGE MAINTAINERS ANY BUGS OR UNEXPECTED BEHAVIOUR."
+    print   "####################################################################################################\n" 
     print '\033[0m'
 pass
 
+#########################################################################################################
+#########################################################################################################
 
+def print_menu_make_selection():
+    print ("""
+
+Select CUDA architecture: 
+
+            1. CUDA 2.0 ( Best compatibility, FERMI architecture )
+            2. CUDA 3.5 ( KEPLER or later )
+            3. CUDA 5.2 ( MAXWELL or later )
+            4. CUDA 6.0 ( PASCAL or later )
+
+            """)
+
+    ans=raw_input("Option (Default 1): ")
+    if ans=="1":
+        arch = "--gpu-architecture=compute_20 -maxrregcount=128 "
+    elif ans=="2":
+        arch = "--gpu-architecture=compute_35"
+    elif ans=="3":
+        arch = "--gpu-architecture=compute_50"
+    elif ans=="4":
+        arch = "--gpu-architecture=compute_60"
+    else:
+        arch = "--gpu-architecture=compute_20"
+
+    print ("""
+
+Select Rosenbrock solver: 
+
+            1. All 
+            2. Ros2 ( Fastest )
+            3. Ros3 ( 3-stage L-stable )
+            4. Ros4 ( 4-stage L-stable )
+            5. Rodas3 ( 4-stage stiffly accurate )
+            6. Rodas4 ( 6-stage stiffly accurate - Slowest )
+
+            """)
+
+    ros = raw_input("Option (Default 1): ")
+
+    if ros not in ['1','2','3','4','5','6']:
+        ros = "0"
+
+    print "Selected options: " + arch + " with ros: "  + ros + "\n"
+    return ros,arch
 
 #########################################################################################################
 #########################################################################################################
@@ -1257,6 +1303,10 @@ if (multifile == True):
 
 
 
+
+###############################################
+# get the options for the architecture and the rosenbrock kernel
+ros,arch = print_menu_make_selection()
 
 
 ###############################################
@@ -1460,7 +1510,7 @@ generate_c2f_interface(file_messy_mecca_kpp)
 
 print "\nStep 10: Modifing specific.mk and specific.mk"
 
-add_cuda_compilation(file_specific,file_makefile)
+add_cuda_compilation(file_specific,file_makefile,arch)
 
 
 ###############################################

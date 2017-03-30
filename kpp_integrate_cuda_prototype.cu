@@ -569,9 +569,6 @@ __device__ double rconst_local[MAX_VL_GLO*NREACT];
 
 
 __global__ 
-#if __CUDA_ARCH__ <= 350
-__launch_bounds__(2*BLOCKSIZE,4)
-#endif
 void Rosenbrock(double *conc, double Tstart, double Tend, double *rstatus, int *istatus,
                 // values calculated from icntrl and rcntrl at host
                 int autonomous, int vectorTol, int UplimTol, int method, int Max_no_steps,
