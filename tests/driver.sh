@@ -20,7 +20,7 @@ echo "=================> STEP 2: Running script. <=================="
 (
 set -x
 cd messy/util
-python ./f2c_alpha.py 1 1 > /dev/null
+python ./f2c_alpha.py -r 1 -g 1 > /dev/null
 )
 
 status=$?
@@ -52,6 +52,7 @@ cat ./raw/main.c >> ./messy/smcl/messy_mecca_kpp_acc.cu
 cd messy/smcl
 nvcc -O1  messy_mecca_kpp_acc.cu  2>&1  | grep error
 ./a.out | grep -v "Results"
+exit;
 cuda-memcheck ./a.out | grep -v "Results"
 ./a.out | grep "Results" | sed -e "s/Results://g" > res_gpu.txt
 )
