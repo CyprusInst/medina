@@ -52,7 +52,6 @@ cat ./raw/main.c >> ./messy/smcl/messy_mecca_kpp_acc.cu
 cd messy/smcl
 nvcc -O1  messy_mecca_kpp_acc.cu  2>&1  | grep error
 ./a.out | grep -v "Results"
-exit;
 cuda-memcheck ./a.out | grep -v "Results"
 ./a.out | grep "Results" | sed -e "s/Results://g" > res_gpu.txt
 )
