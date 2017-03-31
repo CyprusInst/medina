@@ -195,7 +195,7 @@ __device__  static double alpha_AN(const int n, const int ro2type, const double 
 }
 __device__ double ros_ErrorNorm(double *var, double * __restrict__ varNew, double * __restrict__ varErr, 
                                 const double * __restrict__ absTol, const double * __restrict__ relTol,
-                                int vectorTol )
+                                const int vectorTol )
 {
     double err, scale, varMax;
 
@@ -243,7 +243,7 @@ __device__ double ros_ErrorNorm(double *var, double * __restrict__ varNew, doubl
 
 =#=#=#=#=#=#=#=#=#=#=kppSolve=#=#=#=#=#=#=#=#=#=#=
 
-__device__ void ros_Solve(double *Ghimj, double *K, int &Nsol, int istage,  int ros_S)
+__device__ void ros_Solve(double * __restrict__ Ghimj, double * __restrict__ K, int &Nsol, const int istage, const int ros_S)
 {
 
     #pragma unroll 4 
@@ -257,7 +257,7 @@ __device__ void ros_Solve(double *Ghimj, double *K, int &Nsol, int istage,  int 
 
 =#=#=#=#=#=#=#=#=#=#=kppDecomp=#=#=#=#=#=#=#=#=#=#=
 
-__device__ void ros_Decomp(double *Ghimj, int &Ndec, int VL_GLO)
+__device__ void ros_Decomp(double * __restrict__ Ghimj, int &Ndec, int VL_GLO)
 {
     kppDecomp(Ghimj, VL_GLO);
     Ndec++;
@@ -270,7 +270,8 @@ __device__ void ros_Decomp(double *Ghimj, int &Ndec, int VL_GLO)
 
 =#=#=#=#=#=#=#=#=#=#=Fun=#=#=#=#=#=#=#=#=#=#=
 
-__device__ void ros_FunTimeDerivative(double T, double roundoff, double *var, const double * __restrict__ fix, const double * __restrict__ rconst, double *dFdT, double *Fcn0, int &Nfun, int VL_GLO)
+__device__ void ros_FunTimeDerivative(const double T, double roundoff, double * __restrict__ var, const double * __restrict__ fix, 
+                                      const double * __restrict__ rconst, double *dFdT, double *Fcn0, int &Nfun, const int VL_GLO)
 {
     int index = blockIdx.x*blockDim.x+threadIdx.x;
     const double DELTAMIN = 1.0E-6;
@@ -286,21 +287,21 @@ __device__ void ros_FunTimeDerivative(double T, double roundoff, double *var, co
     }
 }
 
-__device__ int ros_Integrator(double * __restrict__ var, double * __restrict__ fix, double Tstart, double Tend, double &T,
+__device__ static int ros_Integrator(double * __restrict__ var, const double * __restrict__ fix, const double Tstart, const double Tend, double &T,
         //  Rosenbrock method coefficients
-        const int ros_S, const double * ros_M, const double *  ros_E, const double * __restrict__ ros_A, const double *  ros_C, 
-        const double *ros_Alpha, const double * ros_Gamma, const double ros_ELO, const int * ros_NewF, 
+        const int ros_S, const double * __restrict__ ros_M, const double * __restrict__ ros_E, const double * __restrict__ ros_A, const double * __restrict__  ros_C, 
+        const double * __restrict__ ros_Alpha, const double * __restrict__ ros_Gamma, const double ros_ELO, const int * ros_NewF, 
         //  Integration parameters
-        int autonomous, int vectorTol, int Max_no_steps, 
-        double roundoff, double Hmin, double Hmax, double Hstart, double &Hexit, 
-        double FacMin, double FacMax, double FacRej, double FacSafe, 
+        const int autonomous, const int vectorTol, const int Max_no_steps, 
+        const double roundoff, const double Hmin, const double Hmax, const double Hstart, double &Hexit, 
+        const double FacMin, const double FacMax, const double FacRej, const double FacSafe, 
         //  Status parameters
         int &Nfun, int &Njac, int &Nstp, int &Nacc, int &Nrej, int &Ndec, int &Nsol, int &Nsng,
         //  cuda global mem buffers              
-        const double *rconst,  const double * __restrict__ absTol, const double * __restrict__ relTol, double * __restrict__ varNew, double * __restrict__ Fcn0, 
+        const double * __restrict__ rconst,  const double * __restrict__ absTol, const double * __restrict__ relTol, double * __restrict__ varNew, double * __restrict__ Fcn0, 
         double * __restrict__ K, double * __restrict__ dFdT, double * __restrict__ jac0, double * __restrict__ Ghimj, double * __restrict__ varErr,
         // VL_GLO
-        int VL_GLO)
+        const int VL_GLO)
 {
     int index = blockIdx.x*blockDim.x+threadIdx.x;
 
@@ -492,7 +493,7 @@ typedef struct {
 /*
  * Lookup tables for different ROS for branch elimination. It is much faster in GPU.
  */
-__device__ const  ros_t ros[5] = {
+__device__ __constant__  ros_t ros[5] = {
     {       
         {.58578643762690495119831127579030,0,0,0,0,0,0,0,0,0,0,0,0,0,0}, /* ros_A */
         {-1.17157287525380990239662255158060,0,0,0,0,0,0,0,0,0,0,0,0,0,0}, /* ros_C */
@@ -569,14 +570,14 @@ __device__ double rconst_local[MAX_VL_GLO*NREACT];
 
 
 __global__ 
-void Rosenbrock(double *conc, double Tstart, double Tend, double *rstatus, int *istatus,
+void Rosenbrock(double * __restrict__ conc, const double Tstart, const double Tend, double * __restrict__ rstatus, int * __restrict__ istatus,
                 // values calculated from icntrl and rcntrl at host
-                int autonomous, int vectorTol, int UplimTol, int method, int Max_no_steps,
-                double Hmin, double Hmax, double Hstart, double FacMin, double FacMax, double FacRej, double FacSafe, double roundoff,
+                const int autonomous, const int vectorTol, const int UplimTol, const int method, const int Max_no_steps,
+                const double Hmin, const double Hmax, const double Hstart, const double FacMin, const double FacMax, const double FacRej, const double FacSafe, const double roundoff,
                 //  cuda global mem buffers              
                 const double * __restrict__ absTol, const double * __restrict__ relTol,
                 // extra
-                int VL_GLO, int pe)
+                const int VL_GLO)
 {
     int index = blockIdx.x*blockDim.x+threadIdx.x;
 
@@ -1227,7 +1228,7 @@ extern "C" void kpp_integrate_cuda_( int *pe_p, int *sizes, double *time_step_le
                                      //  cuda global mem buffers              
                                      d_absTol, d_relTol,   
                                      // extra - vector lenght and processor
-                                     VL_GLO, pe);
+                                     VL_GLO);
 
     GPU_DEBUG();
 
