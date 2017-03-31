@@ -20,6 +20,8 @@ import os
 import shutil
 import re
 import subprocess, string 
+import argparse
+
 
 def remove_comments(source):
     print "Removing comments..."
@@ -1181,19 +1183,8 @@ pass
 #########################################################################################################
 #########################################################################################################
 
-def print_menu_make_selection():
-    print ("""
 
-Select CUDA architecture: 
-
-            1. CUDA 2.0 ( Best compatibility, FERMI architecture )
-            2. CUDA 3.5 ( KEPLER or later )
-            3. CUDA 5.2 ( MAXWELL or later )
-            4. CUDA 6.0 ( PASCAL or later )
-
-            """)
-
-    ans=raw_input("Option (Default 1): ")
+def select_architecture(ans):
     if ans=="1":
         arch = "--gpu-architecture=compute_20 -maxrregcount=128 "
     elif ans=="2":
@@ -1205,7 +1196,29 @@ Select CUDA architecture:
     else:
         arch = "--gpu-architecture=compute_20"
 
-    print ("""
+    return arch
+
+def print_menu_make_selection(ros,gpu):
+
+    if gpu is None:
+        print ("""
+
+    Select CUDA architecture: 
+
+                1. CUDA 2.0 ( Best compatibility, FERMI architecture )
+                2. CUDA 3.5 ( KEPLER or later )
+                3. CUDA 5.2 ( MAXWELL or later )
+                4. CUDA 6.0 ( PASCAL or later )
+
+                """)
+
+        gpu = raw_input("Option (Default 1): ")
+
+    arch = select_architecture(gpu)
+
+
+    if ros is None:
+        print ("""
 
 Select Rosenbrock solver: 
 
@@ -1218,7 +1231,7 @@ Select Rosenbrock solver:
 
             """)
 
-    ros = raw_input("Option (Default 1): ")
+        ros = raw_input("Option (Default 1): ")
 
     if ros not in ['1','2','3','4','5','6']:
         ros = "0"
@@ -1240,6 +1253,23 @@ vectorize = False
 indirect  = False
 
 
+###############################################
+
+# check if we have the arguments
+parser = argparse.ArgumentParser(description='MEDINA: FORTRAN to CUDA KPP for EMAC Preprocessor.')
+parser.add_argument('-r', '--ros', help='An integer value of the Rosenbrock solver [1: all, 2: Ros2, 3: Ros3, 4: Rodas3, 5: Rodas4]')
+parser.add_argument('-g', '--gpu', help='An integer value of the architecture [1: FERMI, 2: KEPLER, 3: MAXWELL, 4: PASCAL]')
+args = parser.parse_args()
+
+ros = args.ros
+gpu = args.gpu
+
+
+# get the options for the architecture and the rosenbrock kernel
+ros,arch = print_menu_make_selection(ros,gpu)
+
+
+###############################################
 # Print generic information - header
 print "\n+===================================================================+ "
 print "| KPP Fortranl to CUDA praser - Copyright 2016 The Cyprus Institute |"
@@ -1304,9 +1334,7 @@ if (multifile == True):
 
 
 
-###############################################
-# get the options for the architecture and the rosenbrock kernel
-ros,arch = print_menu_make_selection()
+
 
 
 ###############################################
