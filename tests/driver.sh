@@ -20,7 +20,7 @@ echo "=================> STEP 2: Running script. <=================="
 (
 set -x
 cd messy/util
-python ./f2c_alpha.py > /dev/null
+python ./f2c_alpha.py 1 1 > /dev/null
 )
 
 status=$?
