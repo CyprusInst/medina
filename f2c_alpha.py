@@ -1222,12 +1222,12 @@ def print_menu_make_selection(ros,gpu):
 
 Select Rosenbrock solver: 
 
-            1. All 
-            2. Ros2 ( Fastest )
+            1. All  ( Selects based on the runtime option )
+            2. Ros2 ( 2-stage L-stable - FASTEST )
             3. Ros3 ( 3-stage L-stable )
-            4. Ros4 ( 4-stage L-stable )
+            4. Ros4 ( 4-stage L-stable - RECOMMEND )
             5. Rodas3 ( 4-stage stiffly accurate )
-            6. Rodas4 ( 6-stage stiffly accurate - Slowest )
+            6. Rodas4 ( 6-stage stiffly accurate - SLOWEST )
 
             """)
 
@@ -1257,7 +1257,7 @@ indirect  = False
 
 # check if we have the arguments
 parser = argparse.ArgumentParser(description='MEDINA: FORTRAN to CUDA KPP for EMAC Preprocessor.')
-parser.add_argument('-r', '--ros', help='An integer value of the Rosenbrock solver [1: all, 2: Ros2, 3: Ros3, 4: Rodas3, 5: Rodas4]')
+parser.add_argument('-r', '--ros', help='An integer value of the Rosenbrock solver produced [1: all (selected at runtime), 2: Ros2, 3: Ros3, 4: Rodas3, 5: Rodas4]')
 parser.add_argument('-g', '--gpu', help='An integer value of the architecture [1: FERMI, 2: KEPLER, 3: MAXWELL, 4: PASCAL]')
 args = parser.parse_args()
 
