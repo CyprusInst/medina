@@ -62,6 +62,10 @@
 #define jx(i,j)      jx[j*VL_GLO+i]
 #define istatus(i,j) istatus[(j)*(VL_GLO)+(i)]   
 #define rstatus(i,j) rstatus[(j)*(VL_GLO)+(i)]
+
+
+#define ROUND128(X)  (X + (128 - 1)) & ~(128 - 1)
+
 #define rconst(i,j)  rconst[(j)*(VL_GLO)+(i)]
 
 
@@ -79,7 +83,6 @@
 #define K(i,j,k) K[(j)*(NVAR)+(k)]
 #define jac0(i,j)    jac0[(j)]    
 #define Ghimj(i,j)   Ghimj[(j)]   
-#define pivot(i,j)  pivot[(j)*(VL_GLO)+(i)]
 
 
 /* Enable debug flags for GPU */
@@ -193,7 +196,7 @@ __device__  static double alpha_AN(const int n, const int ro2type, const double 
     alpha_a    = k_ratio/(1+ k_ratio) *m;
     return alpha_a;
 }
-__device__ double ros_ErrorNorm(double *var, double * __restrict__ varNew, double * __restrict__ varErr, 
+__device__ double ros_ErrorNorm(double * __restrict__ var, double * __restrict__ varNew, double * __restrict__ varErr, 
                                 const double * __restrict__ absTol, const double * __restrict__ relTol,
                                 const int vectorTol )
 {
@@ -287,7 +290,7 @@ __device__ void ros_FunTimeDerivative(const double T, double roundoff, double * 
     }
 }
 
-__device__ static int ros_Integrator(double * __restrict__ var, const double * __restrict__ fix, const double Tstart, const double Tend, double &T,
+__device__  static  int ros_Integrator(double * __restrict__ var, const double * __restrict__ fix, const double Tstart, const double Tend, double &T,
         //  Rosenbrock method coefficients
         const int ros_S, const double * __restrict__ ros_M, const double * __restrict__ ros_E, const double * __restrict__ ros_A, const double * __restrict__  ros_C, 
         const double * __restrict__ ros_Alpha, const double * __restrict__ ros_Gamma, const double ros_ELO, const int * ros_NewF, 
@@ -364,8 +367,6 @@ __device__ static int ros_Integrator(double * __restrict__ var, const double * _
         while(1)
         {
             ros_PrepareMatrix(H, direction, ros_Gamma[0], jac0, Ghimj, Nsng, Ndec, VL_GLO);
-
-
             //   ~~~>   Compute the stages
             // Stage: 
             for (int istage=0; istage < ros_S; istage++)
@@ -696,6 +697,9 @@ void Rosenbrock(double * __restrict__ conc, const double Tstart, const double Te
         rstatus(index,ihexit) = Hexit; 
     }
 }
+
+
+=#=#=#=#=#=#=#=#=#=#=special_ros=#=#=#=#=#=#=#=#=#=#=
 
 __device__ double k_3rd(double temp, double cair, double k0_300K, double n, double kinf_300K, double m, double fc)
     /*
@@ -1221,20 +1225,10 @@ extern "C" void kpp_integrate_cuda_( int *pe_p, int *sizes, double *time_step_le
         }
     }
 
-    Rosenbrock<<<dimGrid,dimBlock>>>(d_conc, Tstart, Tend, d_rstatus, d_istatus,
-                                     // values calculated from icntrl and rcntrl at host
-                                     autonomous, vectorTol, UplimTol, method, Max_no_steps,
-                                     Hmin, Hmax, Hstart, FacMin, FacMax, FacRej, FacSafe, roundoff,
-                                     //  cuda global mem buffers              
-                                     d_absTol, d_relTol,   
-                                     // extra - vector lenght and processor
-                                     VL_GLO);
+
+    =#=#=#=#=#=#=#=#=#=#=call_kernel=#=#=#=#=#=#=#=#=#=#=
 
     GPU_DEBUG();
-
-
-
-
 
     
     reduce_istatus_1<<<REDUCTION_SIZE_2,REDUCTION_SIZE_1>>>(d_istatus, d_tmp_out_1, d_tmp_out_2, VL_GLO, d_xNacc, d_xNrej);

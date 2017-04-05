@@ -803,6 +803,86 @@ def generate_prepareMatrix(lu_diag):
  
  
 pass
+
+#########################################################################################################
+        
+def generate_special_ros(ros):
+
+    
+    
+    if ( ros == '2'):
+        file_ros = open("./source/ros2.cu","r")
+    elif (ros == '3'):
+        file_ros = open("./source/ros3.cu","r")
+    elif (ros == '4'):
+        file_ros = open("./source/ros4.cu","r")
+    elif (ros == '5'):
+        file_ros = open("./source/rodas3.cu","r")
+    elif (ros == '6'):
+        file_ros = open("./source/rodas4.cu","r")
+    else:
+        return ''
+
+
+    rosfunc = []
+    source = file_ros.readlines()
+    for line in source:
+        rosfunc.append(line)
+    return rosfunc 
+ 
+ 
+pass
+#########################################################################################################
+
+        
+def generate_special_ros_caller(ros):
+    
+    roscall = []
+
+    default_call = '      Rosenbrock<<<dimGrid,dimBlock>>>(d_conc, Tstart, Tend, d_rstatus, d_istatus,\n\
+                    // values calculated from icntrl and rcntrl at host\n\
+                    autonomous, vectorTol, UplimTol, method, Max_no_steps,\n\
+                    Hmin, Hmax, Hstart, FacMin, FacMax, FacRej, FacSafe, roundoff,\n\
+                    //  cuda global mem buffers              \n\
+                    d_absTol, d_relTol,   \n\
+                    // extra - vector lenght and processor\n\
+                    VL_GLO); '
+
+    if ( ros == '2'):
+        return default_call 
+    elif (ros == '3'):
+        rosscall = ' switch (method){\n\
+        case 2:\n\
+            Rosenbrock_ros3<<<dimGrid,dimBlock>>>(d_conc, Tstart, Tend, d_rstatus, d_istatus,\n\
+                    autonomous, vectorTol, UplimTol, Max_no_steps,\n\
+                    Hmin, Hmax, Hstart, FacMin, FacMax, FacRej, FacSafe, roundoff,\n\
+                    d_absTol, d_relTol,\n\
+                    VL_GLO);\n\
+            break;\n\
+        default: \n' + default_call + '\n\
+        \n\
+                    break;\n\
+    }\n'
+
+
+    elif (ros == '4'):
+        return default_call 
+    elif (ros == '5'):
+        return default_call 
+    elif (ros == '6'):
+        return default_call 
+    else:
+        return default_call 
+
+
+
+    return rosscall 
+ 
+ 
+pass
+
+
+
 #########################################################################################################
 #########################################################################################################
         
@@ -1283,7 +1363,7 @@ print_warning()
 if ( os.path.isfile("../smcl/messy_mecca_kpp.f90") == False             or
      os.path.isfile("../smcl/messy_cmn_photol_mem.f90") == False        or
      os.path.isfile("../smcl/messy_main_constants_mem.f90") == False    or
-     os.path.isfile("kpp_integrate_cuda_prototype.cu") == False or 
+     os.path.isfile("./source/kpp_integrate_cuda_prototype.cu") == False or 
      os.path.isfile("../smcl/specific.mk") == False or 
      os.path.isfile("../smcl/Makefile.m") == False     
      ):
@@ -1351,7 +1431,7 @@ os.remove("../smcl/messy_mecca_kpp.f90")
 file_messy_mecca_kpp = open("../smcl/messy_mecca_kpp.f90.old","r")
 file_messy_cmn_photol_mem = open("../smcl/messy_cmn_photol_mem.f90","r")
 file_messy_main_constants_mem = open("../smcl/messy_main_constants_mem.f90","r")
-file_prototype = open("kpp_integrate_cuda_prototype.cu","r")
+file_prototype = open("./source/kpp_integrate_cuda_prototype.cu","r")
 file_specific = open("../smcl/specific.mk","a")
 file_makefile = open("../smcl/Makefile.m","r+")
 
@@ -1519,24 +1599,38 @@ source = fix_indices(source,[("A","A"),("RCT","rconst"),("F","fix"),("V","var"),
 source_cuda["fun"] = generate_fun(source,NREACT)
 
 ###############################################
-
+print "\n==> Step 8: Parsing preparing diagonal."
 
 
 source_cuda["ros_preparematrix"] = generate_prepareMatrix(lu_diag)
 
 ###############################################
+print "\n==> Step 9: Generating customized solver."
 
-print "\nStep 8: Generating kpp_integrate_cuda."
+source_cuda["special_ros"] = generate_special_ros(ros)
+
+
+
+###############################################
+print "\n==> Step 10: Generating calls to customized solver."
+
+source_cuda["call_kernel"] = generate_special_ros_caller(ros)
+
+
+
+###############################################
+
+print "\nStep 11: Generating kpp_integrate_cuda."
 
 gen_kpp_integrate_cuda(file_prototype, source_cuda)
 
-print "\nStep 9: Generating meessy_mecca_kpp replacement."
+print "\nStep 12: Generating meessy_mecca_kpp replacement."
 generate_c2f_interface(file_messy_mecca_kpp)
 
 ###############################################
 
 
-print "\nStep 10: Modifing specific.mk and specific.mk"
+print "\nStep 13: Modifing specific.mk and specific.mk"
 
 add_cuda_compilation(file_specific,file_makefile,arch)
 
