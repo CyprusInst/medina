@@ -1,9 +1,6 @@
 
 
 __device__  static  int ros_Integrator_ros4(double * __restrict__ var, const double * __restrict__ fix, const double Tstart, const double Tend, double &T,
-        //  Rosenbrock method coefficients
-        const double * __restrict__ ros_M, const double * __restrict__ ros_E, const double * __restrict__ ros_A, const double * __restrict__  ros_C, 
-        const double * __restrict__ ros_Alpha, const double * __restrict__ ros_Gamma, const double ros_ELO, const int * ros_NewF, 
         //  Integration parameters
         const int autonomous, const int vectorTol, const int Max_no_steps, 
         const double roundoff, const double Hmin, const double Hmax, const double Hstart, double &Hexit, 
@@ -77,7 +74,9 @@ __device__  static  int ros_Integrator_ros4(double * __restrict__ var, const dou
         // UntilAccepted: 
         while(1)
         {
-            ros_PrepareMatrix(H, direction, ros_Gamma[0], jac0, Ghimj, Nsng, Ndec, VL_GLO);
+
+        //{ 0.5728200000000000E+00, -0.1769193891319233E+01, 0.7592633437920482E+00, -0.1049021087100450E+00,0,0},  /* ros_Gamma */
+            ros_PrepareMatrix(H, direction, 0.5728200000000000E+00, jac0, Ghimj, Nsng, Ndec, VL_GLO);
             //   ~~~>   Compute the stages
             // Stage: 
             //for (int istage=0; istage < ros_S; istage++)
@@ -86,9 +85,9 @@ __device__  static  int ros_Integrator_ros4(double * __restrict__ var, const dou
 		for (int i=0; i<NVAR; i++)		
 			K(index,istage,i)  = Fcn0(index,i);
 
-                if ((!autonomous) && (ros_Gamma[istage] ))
+                if ((!autonomous) )
                 {
-                    HG = direction*H*ros_Gamma[istage];
+                    HG = direction*H*(0.5728200000000000E+00);
                     for (int i=0; i<NVAR; i++){
                         K(index,istage,i) += dFdT(index,i)*HG;
 		     }
@@ -100,19 +99,19 @@ __device__  static  int ros_Integrator_ros4(double * __restrict__ var, const dou
             {
                 int istage=1;
                 for (int i=0; i<NVAR; i++){		
-                    varNew(index,i) = K(index,0,i)*ros_A[0]  + var(index,i);
+                    varNew(index,i) = K(index,0,i)*(2.0)  + var(index,i);
                 }
 
                 Fun(varNew, fix, rconst, varNew, Nfun,VL_GLO); // FCN <- varNew / not overlap 
 
-                HC = ros_C[0]/(direction*H);
+                HC = (-0.7137615036412310E+01)/(direction*H);
                 for (int i=0; i<NVAR; i++){
                     K(index,1,i) = K(index,0,i)*HC + varNew(index,i);
                 }
 
                 if ((!autonomous))
                 {
-                    HG = direction*H*ros_Gamma[istage];
+                    HG = direction*H*(-0.1769193891319233E+01);
                     for (int i=0; i<NVAR; i++){
                         K(index,istage,i) += dFdT(index,i)*HG;
 		     }
@@ -142,7 +141,7 @@ __device__  static  int ros_Integrator_ros4(double * __restrict__ var, const dou
 
                 if ((!autonomous) )
                 {
-                    HG = direction*H*ros_Gamma[2];
+                    HG = direction*H*(0.7592633437920482E+00);
                     for (int i=0; i<NVAR; i++){
                         K(index,istage,i) += dFdT(index,i)*HG;
 		     }
@@ -167,7 +166,7 @@ __device__  static  int ros_Integrator_ros4(double * __restrict__ var, const dou
 
                 if ((!autonomous) )
                 {
-                    HG = direction*H*ros_Gamma[istage];
+                    HG = direction*H*(-0.1049021087100450E+00);
                     for (int i=0; i<NVAR; i++){
                         K(index,istage,i) += dFdT(index,i)*HG;
 		     }
@@ -202,7 +201,7 @@ __device__  static  int ros_Integrator_ros4(double * __restrict__ var, const dou
 
 
 //  ~~~> New step size is bounded by FacMin <= Hnew/H <= FacMax
-            Fac  = fmin(FacMax,fmax(FacMin,FacSafe/pow(Err,ONE/ros_ELO)));
+            Fac  = fmin(FacMax,fmax(FacMin,FacSafe/pow(Err,ONE/4.0)));
             Hnew = H*Fac;
 
 //  ~~~>  Check the error magnitude and adjust step size
@@ -273,7 +272,6 @@ void Rosenbrock_ros4(double * __restrict__ conc, const double Tstart, const doub
     double Ghimj_stack[LU_NONZERO*3];
     double K_stack[6*NVAR];
 
-    const int method = 3;
 
     /* Allocated in Global mem */
     double *rconst = rconst_local;
@@ -304,17 +302,6 @@ void Rosenbrock_ros4(double * __restrict__ conc, const double Tstart, const doub
         Nsol = 0;
         Nsng = 0;
 
-        /* FIXME: add check for method */
-        const double *ros_A     = &ros[method-1].ros_A[0]; 
-        const double *ros_C     = &ros[method-1].ros_C[0];
-        const double *ros_M     = &ros[method-1].ros_M[0]; 
-        const double *ros_E     = &ros[method-1].ros_E[0];
-        const double *ros_Alpha = &ros[method-1].ros_Alpha[0]; 
-        const double *ros_Gamma = &ros[method-1].ros_Gamma[0]; 
-        const int    *ros_NewF  = &ros[method-1].ros_NewF[0];
-        const int     ros_S     =  ros[method-1].ros_S; 
-        const double  ros_ELO   =  ros[method-1].ros_ELO; 
-
         /* Copy data from global memory to temporary array */
         /*
          * Optimization note: if we ever have enough constant
@@ -336,9 +323,6 @@ void Rosenbrock_ros4(double * __restrict__ conc, const double Tstart, const doub
          *
          */
         ros_Integrator_ros4(var, fix, Tstart, Tend, Texit,
-                //  Rosenbrock method coefficients
-                ros_M, ros_E, ros_A, ros_C, 
-                ros_Alpha, ros_Gamma, ros_ELO, ros_NewF, 
                 //  Integration parameters
                 autonomous, vectorTol, Max_no_steps, 
                 roundoff, Hmin, Hmax, Hstart, Hexit, 
