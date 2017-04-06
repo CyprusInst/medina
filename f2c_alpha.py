@@ -849,9 +849,21 @@ def generate_special_ros_caller(ros):
                     VL_GLO); '
 
     if ( ros == '2'):
-        return default_call 
+        rosscall = '     switch (method){\n\
+        case 1:\n\
+            Rosenbrock_ros2<<<dimGrid,dimBlock>>>(d_conc, Tstart, Tend, d_rstatus, d_istatus,\n\
+                    autonomous, vectorTol, UplimTol, Max_no_steps,\n\
+                    Hmin, Hmax, Hstart, FacMin, FacMax, FacRej, FacSafe, roundoff,\n\
+                    d_absTol, d_relTol,\n\
+                    VL_GLO);\n\
+            break;\n\
+        default: \n' + default_call + '\n\
+        \n\
+                    break;\n\
+    }\n'
+
     elif (ros == '3'):
-        rosscall = ' switch (method){\n\
+        rosscall = '      switch (method){\n\
         case 2:\n\
             Rosenbrock_ros3<<<dimGrid,dimBlock>>>(d_conc, Tstart, Tend, d_rstatus, d_istatus,\n\
                     autonomous, vectorTol, UplimTol, Max_no_steps,\n\
@@ -866,11 +878,48 @@ def generate_special_ros_caller(ros):
 
 
     elif (ros == '4'):
-        return default_call 
+        rosscall = '      switch (method){\n\
+        case 3:\n\
+            Rosenbrock_ros4<<<dimGrid,dimBlock>>>(d_conc, Tstart, Tend, d_rstatus, d_istatus,\n\
+                    autonomous, vectorTol, UplimTol, Max_no_steps,\n\
+                    Hmin, Hmax, Hstart, FacMin, FacMax, FacRej, FacSafe, roundoff,\n\
+                    d_absTol, d_relTol,\n\
+                    VL_GLO);\n\
+            break;\n\
+        default: \n' + default_call + '\n\
+        \n\
+                    break;\n\
+    }\n'
+
+
     elif (ros == '5'):
-        return default_call 
+        rosscall = '      switch (method){\n\
+        case 4:\n\
+            Rosenbrock_rodas3<<<dimGrid,dimBlock>>>(d_conc, Tstart, Tend, d_rstatus, d_istatus,\n\
+                    autonomous, vectorTol, UplimTol, Max_no_steps,\n\
+                    Hmin, Hmax, Hstart, FacMin, FacMax, FacRej, FacSafe, roundoff,\n\
+                    d_absTol, d_relTol,\n\
+                    VL_GLO);\n\
+            break;\n\
+        default: \n' + default_call + '\n\
+        \n\
+                    break;\n\
+    }\n'
+
+
     elif (ros == '6'):
-        return default_call 
+        rosscall = '      switch (method){\n\
+        case 5:\n\
+            Rosenbrock_rodas4<<<dimGrid,dimBlock>>>(d_conc, Tstart, Tend, d_rstatus, d_istatus,\n\
+                    autonomous, vectorTol, UplimTol, Max_no_steps,\n\
+                    Hmin, Hmax, Hstart, FacMin, FacMax, FacRej, FacSafe, roundoff,\n\
+                    d_absTol, d_relTol,\n\
+                    VL_GLO);\n\
+            break;\n\
+        default: \n' + default_call + '\n\
+        \n\
+                    break;\n\
+    }\n'
     else:
         return default_call 
 
@@ -1620,17 +1669,17 @@ source_cuda["call_kernel"] = generate_special_ros_caller(ros)
 
 ###############################################
 
-print "\nStep 11: Generating kpp_integrate_cuda."
+print "\n==> Step 11: Generating kpp_integrate_cuda."
 
 gen_kpp_integrate_cuda(file_prototype, source_cuda)
 
-print "\nStep 12: Generating meessy_mecca_kpp replacement."
+print "\n==> Step 12: Generating meessy_mecca_kpp replacement."
 generate_c2f_interface(file_messy_mecca_kpp)
 
 ###############################################
 
 
-print "\nStep 13: Modifing specific.mk and specific.mk"
+print "\n==> Step 13: Modifing specific.mk and specific.mk"
 
 add_cuda_compilation(file_specific,file_makefile,arch)
 
