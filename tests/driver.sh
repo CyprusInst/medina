@@ -12,7 +12,7 @@ echo "=================> STEP 1: Copying files. <==================="
 set -x
 cp raw/* ./messy/smcl/
 cp ../f2c_alpha.py  ./messy/util/
-cp ../kpp_integrate_cuda_prototype.cu  ./messy/util/
+cp -r ../source  ./messy/util/
 )
 
 echo "=================> STEP 2: Running script. <=================="
@@ -50,11 +50,12 @@ echo "============> STEP 4: Running the application. <=============="
 set -x
 cat ./raw/main.c >> ./messy/smcl/messy_mecca_kpp_acc.cu
 cd messy/smcl
-nvcc -O1  messy_mecca_kpp_acc.cu  2>&1  | grep error
+nvcc -O1  messy_mecca_kpp_acc.cu --keep --keep-dir ./temp_files  2>&1  | grep error
 ./a.out | grep -v "Results"
 cuda-memcheck ./a.out | grep -v "Results"
 ./a.out | grep "Results" | sed -e "s/Results://g" > res_gpu.txt
 )
+
 
 status=$?
 if [ $status == 1 ]; then
@@ -99,7 +100,7 @@ rm ./*
 cd ../fortran/
 rm ./*
 cd ../util/
-rm ./*
+rm -rf ./*
 )
 
 
