@@ -97,6 +97,7 @@ echo "===========> STEP 7: Cleaning up the directories. <==========="
 set -x
 cd messy/smcl/
 rm ./*
+rm ./temp_files/* 
 cd ../fortran/
 rm ./*
 cd ../util/
