@@ -41,13 +41,13 @@ __device__  static  int ros_Integrator_rodas4(double * __restrict__ var, const d
     rejectMoreH=0;
 
     /* Not sure if it worth it for shared */
-    __shared__ double ros_A[15];
-    __shared__  double ros_C[15];
-    __shared__  int   ros_NewF[8];
-    __shared__  double ros_M[6];
-    __shared__   double ros_E[6];
-    __shared__   double ros_Alpha[6];
-    __shared__   double ros_Gamma[6];
+    double ros_A[15];
+    double ros_C[15];
+    int   ros_NewF[8];
+    double ros_M[6];
+    double ros_E[6];
+    double ros_Alpha[6];
+    double ros_Gamma[6];
 
 
     ros_Alpha[0] = 0.000;
