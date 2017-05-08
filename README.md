@@ -57,4 +57,12 @@ case is to use the Multi-process service (MPS) provided by NVIDIA as an alternat
 
 No issues reported with the latest generation of NVIDIA Pascal architectures.
 
-**EOF**
+## Unit tests
+
+A self-contained unit test is included in the ditribution. The test includes 
+reference source files implementing a simplified chemistry mechanism and 
+compiles, exexutes and compares the FORTRAN (using gfortran) 
+and auto-generated CUDA versions.
+
+The test is executed by sourcing `driver.sh` under the `tests` directory. 
+A utility script that compares the test solver output is also included in `tests/compare.py`
