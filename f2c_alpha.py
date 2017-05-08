@@ -641,7 +641,7 @@ def find_LU_DIAG(file_in, NVAR):
     lu_diag = re.sub(r"dimension\([0-9]+\)::lu_diag_[0-9]\s?=\s?\(\/",r",",lu_diag)
     lu_diag = re.sub(r"dimension\([0-9]+\)", r"",lu_diag)
     lu_diag = re.sub(r"::", r"",lu_diag)
-    lu_diag = re.sub(r"lu_diag_[0-9]\s?=\s?",r"",lu_diag)
+    lu_diag = re.sub(r"lu_diag_[0-9]+\s?=\s?",r"",lu_diag)
     lu_diag = re.sub(r"\(/",r"",lu_diag)
     lu_diag = lu_diag.replace("/)\ninteger","")
     lu_diag = lu_diag.replace("parameter,","")
