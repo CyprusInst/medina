@@ -1337,9 +1337,9 @@ def print_menu_make_selection(ros,gpu):
     Select CUDA architecture: 
 
                 1. CUDA 2.0 ( Best compatibility, FERMI architecture )
-                2. CUDA 3.5 ( KEPLER or later )
-                3. CUDA 5.2 ( MAXWELL or later )
-                4. CUDA 6.0 ( PASCAL or later )
+                2. CUDA 3.5 ( KEPLER or later                        )
+                3. CUDA 5.2 ( MAXWELL or later                       )
+                4. CUDA 6.0 ( PASCAL or later                        )
 
                 """)
 
@@ -1353,12 +1353,12 @@ def print_menu_make_selection(ros,gpu):
 
 Select Rosenbrock solver: 
 
-            1. All  ( Selects based on the runtime option )
-            2. Ros2 ( 2-stage L-stable - FASTEST )
-            3. Ros3 ( 3-stage L-stable )
-            4. Ros4 ( 4-stage L-stable - RECOMMEND )
-            5. Rodas3 ( 4-stage stiffly accurate )
-            6. Rodas4 ( 6-stage stiffly accurate - SLOWEST )
+            1. All    ( Selects based on the runtime option  )
+            2. Ros2   ( 2-stage L-stable - FASTEST           )
+            3. Ros3   ( 3-stage L-stable - RECOMMEND         )
+            4. Ros4   ( 4-stage L-stable                     )
+            5. Rodas3 ( 4-stage stiffly accurate             )
+            6. Rodas4 ( 6-stage stiffly accurate - SLOWEST   )
 
             """)
 
