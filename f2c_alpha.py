@@ -36,7 +36,9 @@ def remove_comments(source):
             if line[0] == "!":
                 continue 
             line = line[:line.find("!")-1]+"\n"
-        out.append(line)
+            line = line.strip()
+        if (line != ''):
+            out.append(line)
     return out
 
 def strip_and_unroll_lines(source):
