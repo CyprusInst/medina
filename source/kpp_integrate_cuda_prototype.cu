@@ -899,7 +899,6 @@ __global__ void reduce_istatus_2(int4 *tmp_out_1, int4 *tmp_out_2, int *out)
 /* Assuming different processes */
 enum { TRUE=1, FALSE=0 } ;
 double *d_conc, *d_temp, *d_press, *d_cair, *d_khet_st, *d_khet_tr, *d_jx;
-double *d_rconst;
 int initialized = FALSE;
 
 /* Device pointers pointing to GPU */
@@ -926,7 +925,6 @@ __host__ void init_first_time(int pe, int VL_GLO, int size_khet_st, int size_khe
     gpuErrchk( cudaMalloc ((void **) &d_khet_st, sizeof(double)*VL_GLO*size_khet_st) );
     gpuErrchk( cudaMalloc ((void **) &d_khet_tr, sizeof(double)*VL_GLO*size_khet_tr) );
     gpuErrchk( cudaMalloc ((void **) &d_jx     , sizeof(double)*VL_GLO*size_jx)      );
-    gpuErrchk( cudaMalloc ((void **) &d_rconst , sizeof(double)*VL_GLO*NREACT));
    
     gpuErrchk( cudaMalloc ((void **) &d_rstatus    , sizeof(double)*VL_GLO*2)          );
     gpuErrchk( cudaMalloc ((void **) &d_istatus    , sizeof(int)*VL_GLO*8)             );
