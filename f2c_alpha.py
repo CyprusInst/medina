@@ -1424,13 +1424,10 @@ if ( os.path.isfile("../smcl/messy_mecca_kpp.f90") == False             or
     exit(-1)
 
 # Check if kpp created indirect indexing
-if 'LU_CROW(k+1)' in open("../smcl/messy_mecca_kpp.f90").read():
-    print "Can't convert indirect indexing of file."
-    print "--> Change the decomp in the conf file.\n"
-    print "Exiting... \n"
+if ('LU_CROW(k+1)' in open("../smcl/messy_mecca_kpp.f90").read()) or ('LU_CROW(k+ 1)' in open("../smcl/messy_mecca_kpp.f90").read()):
+    print "Warning: Can't convert indirect indexing of file."
+    print "--> Change the decomp in the conf file or modify the output file.\n"
     indirect = True
-    exit(-1)
-
 
 
 # Check if kpp created vector length chemistry
