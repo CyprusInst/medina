@@ -8,11 +8,6 @@
 #             Theodoros Christoudias - christoudias@cyi.ac.cy
 #             Giannis Ashiotis
 #
-# Version 1.1: 26 Nov 2016 - Added sanity checks for multi-file configurations.
-#                            Performance improvements
-#
-# Version 1.0: 26 Oct 2016 - Initial release
-#
 #########################################################################################################
 
 
