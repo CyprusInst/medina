@@ -569,14 +569,79 @@ __device__ __constant__  ros_t ros[5] = {
 
 __device__ double rconst_local[MAX_VL_GLO*NREACT];
 
+/* Initialize rconst local  */
+
+
+__device__ double k_3rd(double temp, double cair, double k0_300K, double n, double kinf_300K, double m, double fc)
+    /*
+ *    
+ * temp        temperature [K]
+ * cair        air concentration [molecules/cm3]
+ * k0_300K     low pressure limit at 300 K
+ * n           exponent for low pressure limit
+ * kinf_300K   high pressure limit at 300 K
+ * m           exponent for high pressure limit
+ * fc          broadening factor (usually fc=0.6)
+ * 
+ */
+{
+
+    double zt_help, k0_T, kinf_T, k_ratio, k_3rd_r;
+
+    zt_help = 300.0/temp;
+    k0_T    = k0_300K   *pow(zt_help,n) *cair;
+    kinf_T  = kinf_300K *pow(zt_help,m);
+    k_ratio = k0_T/kinf_T;
+    k_3rd_r   = k0_T/(1.0+ k_ratio)*pow(fc,1.0/(1.0+ pow(log10(k_ratio),2)));
+    return k_3rd_r;
+}
+
+__device__ double k_3rd_iupac(double temp, double cair, double k0_300K, double n, double kinf_300K, double m, double fc)
+/*
+ *    
+ * temp        temperature [K]
+ * cair        air concentration [molecules/cm3]
+ * k0_300K     low pressure limit at 300 K
+ * n           exponent for low pressure limit
+ * kinf_300K   high pressure limit at 300 K
+ * m           exponent for high pressure limit
+ * fc          broadening factor (e.g. 0.45 or 0.6...)
+ * nu          N
+ * 
+ */
+{   
+ 
+    double zt_help, k0_T, kinf_T, k_ratio, nu, k_3rd_iupac_r;
+    zt_help = 300.0/temp;
+    k0_T    = k0_300K   *pow(zt_help,n) *cair;
+    kinf_T  = kinf_300K *pow(zt_help,m);
+    k_ratio = k0_T/kinf_T;
+    nu      = 0.75- 1.27*log10(fc);
+    k_3rd_iupac_r = k0_T/(1.0+ k_ratio)*pow(fc,1.0/(1.0+ pow(log10(k_ratio)/nu,2)));
+    return k_3rd_iupac_r;
+}
+
+
+
+
+__device__  double temp_gpu[MAX_VL_GLO];
+__device__  double press_gpu[MAX_VL_GLO];
+__device__  double cair_gpu[MAX_VL_GLO];
+
+
+=#=#=#=#=#=#=#=#=#=#=update_rconst=#=#=#=#=#=#=#=#=#=#=
+
 
 __global__ 
 void Rosenbrock(double * __restrict__ conc, const double Tstart, const double Tend, double * __restrict__ rstatus, int * __restrict__ istatus,
                 // values calculated from icntrl and rcntrl at host
                 const int autonomous, const int vectorTol, const int UplimTol, const int method, const int Max_no_steps,
                 const double Hmin, const double Hmax, const double Hstart, const double FacMin, const double FacMax, const double FacRej, const double FacSafe, const double roundoff,
-                //  cuda global mem buffers              
+                // cuda global mem buffers              
                 const double * __restrict__ absTol, const double * __restrict__ relTol,
+                // for update_rconst
+    	        const double * __restrict__ khet_st, const double * __restrict__ khet_tr,
+		const double * __restrict__ jx,
                 // extra
                 const int VL_GLO)
 {
@@ -644,6 +709,11 @@ void Rosenbrock(double * __restrict__ conc, const double Tstart, const double Te
         const int     ros_S     =  ros[method-1].ros_S; 
         const double  ros_ELO   =  ros[method-1].ros_ELO; 
 
+
+
+        update_rconst(conc, khet_st, khet_tr, jx, VL_GLO); 
+
+
         /* Copy data from global memory to temporary array */
         /*
          * Optimization note: if we ever have enough constant
@@ -701,65 +771,6 @@ void Rosenbrock(double * __restrict__ conc, const double Tstart, const double Te
 
 =#=#=#=#=#=#=#=#=#=#=special_ros=#=#=#=#=#=#=#=#=#=#=
 
-__device__ double k_3rd(double temp, double cair, double k0_300K, double n, double kinf_300K, double m, double fc)
-    /*
- *    
- * temp        temperature [K]
- * cair        air concentration [molecules/cm3]
- * k0_300K     low pressure limit at 300 K
- * n           exponent for low pressure limit
- * kinf_300K   high pressure limit at 300 K
- * m           exponent for high pressure limit
- * fc          broadening factor (usually fc=0.6)
- * 
- */
-{
-
-    double zt_help, k0_T, kinf_T, k_ratio, k_3rd_r;
-
-    zt_help = 300.0/temp;
-    k0_T    = k0_300K   *pow(zt_help,n) *cair;
-    kinf_T  = kinf_300K *pow(zt_help,m);
-    k_ratio = k0_T/kinf_T;
-    k_3rd_r   = k0_T/(1.0+ k_ratio)*pow(fc,1.0/(1.0+ pow(log10(k_ratio),2)));
-    return k_3rd_r;
-}
-
-__device__ double k_3rd_iupac(double temp, double cair, double k0_300K, double n, double kinf_300K, double m, double fc)
-/*
- *    
- * temp        temperature [K]
- * cair        air concentration [molecules/cm3]
- * k0_300K     low pressure limit at 300 K
- * n           exponent for low pressure limit
- * kinf_300K   high pressure limit at 300 K
- * m           exponent for high pressure limit
- * fc          broadening factor (e.g. 0.45 or 0.6...)
- * nu          N
- * 
- */
-{   
- 
-    double zt_help, k0_T, kinf_T, k_ratio, nu, k_3rd_iupac_r;
-    zt_help = 300.0/temp;
-    k0_T    = k0_300K   *pow(zt_help,n) *cair;
-    kinf_T  = kinf_300K *pow(zt_help,m);
-    k_ratio = k0_T/kinf_T;
-    nu      = 0.75- 1.27*log10(fc);
-    k_3rd_iupac_r = k0_T/(1.0+ k_ratio)*pow(fc,1.0/(1.0+ pow(log10(k_ratio)/nu,2)));
-    return k_3rd_iupac_r;
-}
-
-
-/* Initialize rconst local  */
-
-
-#if __CUDA_ARCH__ >= 350
-#undef rconst
-#define rconst(i,j)  rconst[(j)*(VL_GLO)+(i)]
-#endif
-
-=#=#=#=#=#=#=#=#=#=#=update_rconst=#=#=#=#=#=#=#=#=#=#=
 
                                                         // no int8 in CUDA :(
 __global__ void reduce_istatus_1(int *istatus, int4 *tmp_out_1, int4 *tmp_out_2, int VL_GLO, int *xNacc, int *xNrej)
@@ -919,9 +930,6 @@ __host__ void init_first_time(int pe, int VL_GLO, int size_khet_st, int size_khe
     cudaDeviceSetCacheConfig(cudaFuncCachePreferL1); 
 
     gpuErrchk( cudaMalloc ((void **) &d_conc   , sizeof(double)*VL_GLO*(NSPEC))        );
-    gpuErrchk( cudaMalloc ((void **) &d_temp   , sizeof(double)*VL_GLO)              );
-    gpuErrchk( cudaMalloc ((void **) &d_press  , sizeof(double)*VL_GLO)              );
-    gpuErrchk( cudaMalloc ((void **) &d_cair   , sizeof(double)*VL_GLO)              );
     gpuErrchk( cudaMalloc ((void **) &d_khet_st, sizeof(double)*VL_GLO*size_khet_st) );
     gpuErrchk( cudaMalloc ((void **) &d_khet_tr, sizeof(double)*VL_GLO*size_khet_tr) );
     gpuErrchk( cudaMalloc ((void **) &d_jx     , sizeof(double)*VL_GLO*size_jx)      );
@@ -1036,9 +1044,11 @@ extern "C" void kpp_integrate_cuda_( int *pe_p, int *sizes, double *time_step_le
 
     /* Copy data from host memory to device memory */
     gpuErrchk( cudaMemcpy(d_conc   , conc   	, sizeof(double)*VL_GLO*NSPEC        , cudaMemcpyHostToDevice) );
-    gpuErrchk( cudaMemcpy(d_temp   , temp   	, sizeof(double)*VL_GLO              , cudaMemcpyHostToDevice) );
-    gpuErrchk( cudaMemcpy(d_press  , press  	, sizeof(double)*VL_GLO              , cudaMemcpyHostToDevice) );
-    gpuErrchk( cudaMemcpy(d_cair   , cair   	, sizeof(double)*VL_GLO              , cudaMemcpyHostToDevice) );
+
+    gpuErrchk( cudaMemcpyToSymbol(temp_gpu   , temp   	, sizeof(double)*VL_GLO  ) );
+    gpuErrchk( cudaMemcpyToSymbol(press_gpu  , press  	, sizeof(double)*VL_GLO  ) );
+    gpuErrchk( cudaMemcpyToSymbol(cair_gpu   , cair   	, sizeof(double)*VL_GLO  ) );
+
     gpuErrchk( cudaMemcpy(d_khet_st, khet_st	, sizeof(double)*VL_GLO*size_khet_st , cudaMemcpyHostToDevice) );
     gpuErrchk( cudaMemcpy(d_khet_tr, khet_tr	, sizeof(double)*VL_GLO*size_khet_tr , cudaMemcpyHostToDevice) );
     gpuErrchk( cudaMemcpy(d_jx     , jx     	, sizeof(double)*VL_GLO*size_jx      , cudaMemcpyHostToDevice) );
@@ -1058,7 +1068,7 @@ extern "C" void kpp_integrate_cuda_( int *pe_p, int *sizes, double *time_step_le
 
 
     /* Execute the kernel */
-    update_rconst<<<dimGrid,dimBlock>>>(d_conc, d_temp, d_press, d_cair, d_khet_st, d_khet_tr, d_jx, VL_GLO); 
+    //update_rconst<<<dimGrid,dimBlock>>>(d_conc, d_khet_st, d_khet_tr, d_jx, VL_GLO); 
 
     GPU_DEBUG();
  

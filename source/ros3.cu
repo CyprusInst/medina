@@ -74,7 +74,7 @@ __device__ static int ros_Integrator_ros3(double * __restrict__ var, const doubl
 
             { // istage=0
                 for (int i=0; i<NVAR; i++){
-                    K(index,0,i)  = varNew(index,i) = Fcn0(index,i);				// FCN0 Read
+                   varNew(index,i) =  K(index,0,i)  = Fcn0(index,i);				// FCN0 Read
                 }
 
                 if ((!autonomous))
@@ -178,6 +178,8 @@ void Rosenbrock_ros3(double * __restrict__ conc, const double Tstart, const doub
                 const int autonomous, const int vectorTol, const int UplimTol, const int Max_no_steps,
                 const double Hmin, const double Hmax, const double Hstart, const double FacMin, const double FacMax, const double FacRej, const double FacSafe, const double roundoff,
                 const double * __restrict__ absTol, const double * __restrict__ relTol,
+    	        const double * __restrict__ khet_st, const double * __restrict__ khet_tr,
+		const double * __restrict__ jx,
                 const int VL_GLO)
 {
     int index = blockIdx.x*blockDim.x+threadIdx.x;
@@ -235,6 +237,8 @@ void Rosenbrock_ros3(double * __restrict__ conc, const double Tstart, const doub
         Nsol = 0;
         Nsng = 0;
 
+
+        update_rconst(conc, khet_st, khet_tr, jx, VL_GLO);
 
         /* Copy data from global memory to temporary array */
         /*

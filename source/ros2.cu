@@ -225,6 +225,9 @@ void Rosenbrock_ros2(double * __restrict__ conc, const double Tstart, const doub
         Nsol = 0;
         Nsng = 0;
 
+
+        update_rconst(conc, khet_st, khet_tr, jx, VL_GLO);
+
         /* Copy data from global memory to temporary array */
         /*
          * Optimization note: if we ever have enough constant

@@ -325,6 +325,8 @@ void Rosenbrock_rodas4(double * __restrict__ conc, const double Tstart, const do
         Nsng = 0;
 
 
+        update_rconst(conc, khet_st, khet_tr, jx, VL_GLO);
+
         for (int i=0; i<NVAR; i++)
             var(index,i) = conc(index,i);
 

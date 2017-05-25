@@ -326,6 +326,8 @@ void Rosenbrock_rodas3(double * __restrict__ conc, const double Tstart, const do
         const int     ros_S     =  ros[method-1].ros_S; 
         const double  ros_ELO   =  ros[method-1].ros_ELO; 
 
+        update_rconst(conc, khet_st, khet_tr, jx, VL_GLO);
+
         /* Copy data from global memory to temporary array */
         /*
          * Optimization note: if we ever have enough constant
