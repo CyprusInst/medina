@@ -74,7 +74,7 @@ __device__ static int ros_Integrator_ros3(double * __restrict__ var, const doubl
 
             { // istage=0
                 for (int i=0; i<NVAR; i++){
-                   varNew(index,i) =  K(index,0,i)  = Fcn0(index,i);				// FCN0 Read
+                    K(index,0,i)  = Fcn0(index,i);				// FCN0 Read
                 }
 
                 if ((!autonomous))
