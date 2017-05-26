@@ -320,6 +320,8 @@ def rconst_preprocessor_1(source):
     file_temp.write("#define khet_tr(i,j) khet_tr(index,j)\n")
     file_temp.write("#define exp(i) exp(i)\n")
     file_temp.write("#define C(i) conc(index,i)\n")
+    file_temp.write("#define c(i) conc(index,i)\n")
+    file_temp.write("#define REAL( i, SP) (i)\n")
     file_temp.write("#define temp(i) temp_loc\n")
     file_temp.write("#define cair(i) cair_loc\n")
     file_temp.write("#define press(i) press_loc\n")
