@@ -1011,7 +1011,38 @@ def generate_define_vars(file_in,var_names):
     if var_names != []:
         print "Warning: variables "+str(var_names)+" were not found"
     return out
-    
+  
+#
+# Takes prefix of variables as input and the file
+# Returns definitions using index
+#
+def generate_definitions_global(file_in,var_prefix):
+    file_in.seek(0)    
+    source = file_in.readlines()
+    source = remove_comments(source)
+    source = strip_and_unroll_lines(source)
+    out = []
+
+    for var_name in var_prefix:
+        for line in source:
+
+            # ignore some definitions that are not double
+            if "INTEGER" in line:
+                continue
+
+            # we reached after the definitions
+            if "interface" in line:
+                break
+
+            print line
+            allvars = re.findall(r'(' + var_name  + '(\w+)(\s+)?)=\s+(([0-9,E,\-,.])+(\s+)?)[,&,\n]',line)
+
+            if ( len(allvars)  > 0):
+                for definition in allvars:
+                    out.append("#define "+definition[0]+"  ("+str(definition[3])+")\n")
+                    
+    return out
+
 pass
 #########################################################################################################
 #########################################################################################################
@@ -1537,12 +1568,15 @@ if (multifile == True):
     source_cuda["defines_ind_2"] = generate_define_indices_many_lines(file_messy_mecca_kpp_parameters,"ind")
     source_cuda["defines_ind_3"] = generate_define_indices_one_line(file_messy_mecca_kpp_global,"ihs")
     source_cuda["defines_ind_4"] = generate_define_indices_one_line(file_messy_mecca_kpp_global,"iht")
+    source_cuda["defines_ind_5"] = generate_definitions_global(file_messy_mecca_kpp_global ,["k_","f_","a_"])
 else:
     source_cuda["defines_vars_2"] = generate_define_vars(file_messy_mecca_kpp,["NSPEC","NVAR","NFIX","NREACT","LU_NONZERO","NBSIZE"])
     source_cuda["defines_vars_2"].append(generate_define_NBSIZE(subroutines["jac_sp"]))
     source_cuda["defines_ind_2"] = generate_define_indices_many_lines(file_messy_mecca_kpp,"ind")
     source_cuda["defines_ind_3"] = generate_define_indices_one_line(file_messy_mecca_kpp,"ihs")
     source_cuda["defines_ind_4"] = generate_define_indices_one_line(file_messy_mecca_kpp,"iht")
+    source_cuda["defines_ind_5"] = generate_definitions_global(file_messy_mecca_kpp,["k_","f_","a_"])
+
 
 
 # read the values 
