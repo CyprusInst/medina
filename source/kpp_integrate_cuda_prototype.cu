@@ -661,7 +661,7 @@ void Rosenbrock(double * __restrict__ conc, const double Tstart, const double Te
      *
      */
     double varNew_stack[NVAR];
-    double var_stack[NVAR];
+    double var_stack[NSPEC];
     double varErr_stack[NVAR];
     double fix_stack[NFIX];
     double Fcn0_stack[NVAR];
@@ -713,7 +713,6 @@ void Rosenbrock(double * __restrict__ conc, const double Tstart, const double Te
 
 
 
-        update_rconst(conc, khet_st, khet_tr, jx, VL_GLO); 
 
 
         /* Copy data from global memory to temporary array */
@@ -724,11 +723,14 @@ void Rosenbrock(double * __restrict__ conc, const double Tstart, const double Te
          * only a few threads will be able to run on the fly.
          *
          */
-        for (int i=0; i<NVAR; i++)
+        for (int i=0; i<NSPEC; i++)
             var(index,i) = conc(index,i);
 
         for (int i=0; i<NFIX; i++)
             fix(index,i) = conc(index,NVAR+i);
+
+
+        update_rconst(var, khet_st, khet_tr, jx, VL_GLO); 
 
         /* 
          * Optimization TODO: create versions of the ros_integrator.

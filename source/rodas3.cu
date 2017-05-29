@@ -257,6 +257,8 @@ void Rosenbrock_rodas3(double * __restrict__ conc, const double Tstart, const do
                 const double Hmin, const double Hmax, const double Hstart, const double FacMin, const double FacMax, const double FacRej, const double FacSafe, const double roundoff,
                 //  cuda global mem buffers              
                 const double * __restrict__ absTol, const double * __restrict__ relTol,
+    	        const double * __restrict__ khet_st, const double * __restrict__ khet_tr,
+		const double * __restrict__ jx,
                 // extra
                 const int VL_GLO)
 {
@@ -326,7 +328,6 @@ void Rosenbrock_rodas3(double * __restrict__ conc, const double Tstart, const do
         const int     ros_S     =  ros[method-1].ros_S; 
         const double  ros_ELO   =  ros[method-1].ros_ELO; 
 
-        update_rconst(conc, khet_st, khet_tr, jx, VL_GLO);
 
         /* Copy data from global memory to temporary array */
         /*
@@ -336,11 +337,13 @@ void Rosenbrock_rodas3(double * __restrict__ conc, const double Tstart, const do
          * only a few threads will be able to run on the fly.
          *
          */
-        for (int i=0; i<NVAR; i++)
+        for (int i=0; i<NSPEC; i++)
             var(index,i) = conc(index,i);
 
         for (int i=0; i<NFIX; i++)
             fix(index,i) = conc(index,NVAR+i);
+
+        update_rconst(conc, khet_st, khet_tr, jx, VL_GLO);
 
         /* 
          * Optimization TODO: create versions of the ros_integrator.

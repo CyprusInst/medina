@@ -319,8 +319,8 @@ def rconst_preprocessor_1(source):
     file_temp.write("#define khet_st(i,j) khet_st(index,j)\n")
     file_temp.write("#define khet_tr(i,j) khet_tr(index,j)\n")
     file_temp.write("#define exp(i) exp(i)\n")
-    file_temp.write("#define C(i) conc(index,i)\n")
-    file_temp.write("#define c(i) conc(index,i)\n")
+    file_temp.write("#define C(i) var[i]\n")
+    file_temp.write("#define c(i) var[i]\n")
     file_temp.write("#define REAL( i, SP) (i)\n")
     file_temp.write("#define temp(i) temp_loc\n")
     file_temp.write("#define cair(i) cair_loc\n")
@@ -381,7 +381,7 @@ def generate_update_rconst(rconst_ops,rconst_decls,locals):
 
 
     update_rconst.append( \
-    "__device__ void  update_rconst(const double * __restrict__ conc, \n \
+    "__device__ void  update_rconst(const double * __restrict__ var, \n \
 			       const double * __restrict__ khet_st, const double * __restrict__ khet_tr,\n \
 			       const double * __restrict__ jx, \n\
 			       const int VL_GLO)\n")
@@ -804,7 +804,7 @@ pass
 
 #########################################################################################################
         
-def generate_special_ros(ros):
+def generate_special_ros(ros,inject_rconst):
 
     
     
@@ -826,6 +826,13 @@ def generate_special_ros(ros):
     source = file_ros.readlines()
     for line in source:
         rosfunc.append(line)
+
+
+#    if ( inject_rconst is True ):
+#        rosfunc.replace("Jac_sp(var, fix, rconst, jac0, Njac, VL_GLO);","update_rconst(var, khet_st, khet_tr, jx, VL_GLO);   \n Jac_sp(var, fix, rconst, jac0, Njac, VL_GLO); ")
+
+
+
     return rosfunc 
  
  
@@ -1034,7 +1041,6 @@ def generate_definitions_global(file_in,var_prefix):
             if "interface" in line:
                 break
 
-            print line
             allvars = re.findall(r'(' + var_name  + '(\w+)(\s+)?)=\s+(([0-9,E,\-,.])+(\s+)?)[,&,\n]',line)
 
             if ( len(allvars)  > 0):
@@ -1691,7 +1697,7 @@ source_cuda["ros_preparematrix"] = generate_prepareMatrix(lu_diag)
 ###############################################
 print "\n==> Step 9: Generating customized solver."
 
-source_cuda["special_ros"] = generate_special_ros(ros)
+source_cuda["special_ros"] = generate_special_ros(ros,True)
 
 
 
@@ -1707,6 +1713,10 @@ source_cuda["call_kernel"] = generate_special_ros_caller(ros)
 print "\n==> Step 11: Generating kpp_integrate_cuda."
 
 gen_kpp_integrate_cuda(file_prototype, source_cuda)
+
+
+
+###############################################
 
 print "\n==> Step 12: Generating meessy_mecca_kpp replacement."
 generate_c2f_interface(file_messy_mecca_kpp)
