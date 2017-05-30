@@ -10,6 +10,9 @@ __device__  static  int ros_Integrator_ros4(double * __restrict__ var, const dou
         //  cuda global mem buffers              
         const double * __restrict__ rconst,  const double * __restrict__ absTol, const double * __restrict__ relTol, double * __restrict__ varNew, double * __restrict__ Fcn0, 
         double * __restrict__ K, double * __restrict__ dFdT, double * __restrict__ jac0, double * __restrict__ Ghimj, double * __restrict__ varErr,
+        // for update_rconst
+        const double * __restrict__ khet_st, const double * __restrict__ khet_tr,
+        const double * __restrict__ jx,
         // VL_GLO
         const int VL_GLO)
 {
@@ -65,7 +68,7 @@ __device__  static  int ros_Integrator_ros4(double * __restrict__ var, const dou
 
         //   ~~~>  Compute the function derivative with respect to T
         if (!autonomous)
-            ros_FunTimeDerivative(T, roundoff, var, fix, rconst, dFdT, Fcn0, Nfun, VL_GLO); /// VAR READ - fcn0 read
+            ros_FunTimeDerivative(T, roundoff, var, fix, rconst, dFdT, Fcn0, Nfun, khet_st, khet_tr, jx,  VL_GLO); /// VAR READ - fcn0 read
 
         //   ~~~>   Compute the Jacobian at current time
         Jac_sp(var, fix, rconst, jac0, Njac, VL_GLO);   /// VAR READ 
@@ -337,7 +340,10 @@ void Rosenbrock_ros4(double * __restrict__ conc, const double Tstart, const doub
                 Nfun, Njac, Nstp, Nacc, Nrej, Ndec, Nsol, Nsng,
                 //  cuda global mem buffers              
                 rconst, absTol, relTol, varNew, Fcn0,  
-                K, dFdT, jac0, Ghimj,  varErr, VL_GLO
+                K, dFdT, jac0, Ghimj,  varErr, 
+                // For update rconst
+                khet_st, khet_tr, jx,
+                VL_GLO
                 );
 
         for (int i=0; i<NVAR; i++)

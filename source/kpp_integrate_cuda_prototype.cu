@@ -149,6 +149,12 @@ __device__ inline void prefetch_ll2(const void *p) {
 }
 
 
+
+__device__ void  update_rconst(const double * __restrict__ var,
+			       const double * __restrict__ khet_st, const double * __restrict__ khet_tr,
+			       const double * __restrict__ jx, 
+			       const int VL_GLO);
+
 /* This runs on CPU */
 double machine_eps_flt()
 {
@@ -276,7 +282,10 @@ __device__ void ros_Decomp(double * __restrict__ Ghimj, int &Ndec, int VL_GLO)
 =#=#=#=#=#=#=#=#=#=#=Fun=#=#=#=#=#=#=#=#=#=#=
 
 __device__ void ros_FunTimeDerivative(const double T, double roundoff, double * __restrict__ var, const double * __restrict__ fix, 
-                                      const double * __restrict__ rconst, double *dFdT, double *Fcn0, int &Nfun, const int VL_GLO)
+                                      const double * __restrict__ rconst, double *dFdT, double *Fcn0, int &Nfun, 
+                                      const double * __restrict__ khet_st, const double * __restrict__ khet_tr,
+                                      const double * __restrict__ jx,
+                                      const int VL_GLO)
 {
     int index = blockIdx.x*blockDim.x+threadIdx.x;
     const double DELTAMIN = 1.0E-6;
@@ -305,6 +314,9 @@ __device__  static  int ros_Integrator(double * __restrict__ var, const double *
         //  cuda global mem buffers              
         const double * __restrict__ rconst,  const double * __restrict__ absTol, const double * __restrict__ relTol, double * __restrict__ varNew, double * __restrict__ Fcn0, 
         double * __restrict__ K, double * __restrict__ dFdT, double * __restrict__ jac0, double * __restrict__ Ghimj, double * __restrict__ varErr,
+        // for update_rconst
+        const double * __restrict__ khet_st, const double * __restrict__ khet_tr,
+        const double * __restrict__ jx,
         // VL_GLO
         const int VL_GLO)
 {
@@ -359,7 +371,7 @@ __device__  static  int ros_Integrator(double * __restrict__ var, const double *
 
         //   ~~~>  Compute the function derivative with respect to T
         if (!autonomous)
-            ros_FunTimeDerivative(T, roundoff, var, fix, rconst, dFdT, Fcn0, Nfun, VL_GLO); /// VAR READ - fcn0 read
+            ros_FunTimeDerivative(T, roundoff, var, fix, rconst, dFdT, Fcn0, Nfun, khet_st, khet_tr, jx,  VL_GLO); /// VAR READ - fcn0 read
 
         //   ~~~>   Compute the Jacobian at current time
         Jac_sp(var, fix, rconst, jac0, Njac, VL_GLO);   /// VAR READ 
@@ -732,12 +744,6 @@ void Rosenbrock(double * __restrict__ conc, const double Tstart, const double Te
 
         update_rconst(var, khet_st, khet_tr, jx, VL_GLO); 
 
-        /* 
-         * Optimization TODO: create versions of the ros_integrator.
-         * Initial experiments show a 15-20% performance gain 
-         * using specialized version.
-         *
-         */
         ros_Integrator(var, fix, Tstart, Tend, Texit,
                 //  Rosenbrock method coefficients
                 ros_S, ros_M, ros_E, ros_A, ros_C, 
@@ -750,7 +756,10 @@ void Rosenbrock(double * __restrict__ conc, const double Tstart, const double Te
                 Nfun, Njac, Nstp, Nacc, Nrej, Ndec, Nsol, Nsng,
                 //  cuda global mem buffers              
                 rconst, absTol, relTol, varNew, Fcn0,  
-                K, dFdT, jac0, Ghimj,  varErr, VL_GLO
+                K, dFdT, jac0, Ghimj,  varErr, 
+                // For update rconst
+                khet_st, khet_tr, jx,
+                VL_GLO
                 );
 
         for (int i=0; i<NVAR; i++)

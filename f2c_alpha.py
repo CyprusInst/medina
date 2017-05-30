@@ -825,11 +825,12 @@ def generate_special_ros(ros,inject_rconst):
     rosfunc = []
     source = file_ros.readlines()
     for line in source:
+        if ( inject_rconst is True ):
+            line = line.replace("Jac_sp(var, fix, rconst, jac0, Njac, VL_GLO)","update_rconst(var, khet_st, khet_tr, jx, VL_GLO);   \n        Jac_sp(var, fix, rconst, jac0, Njac, VL_GLO)")
+            line = line.replace("Fun(varNew, fix, rconst, varNew, Nfun,VL_GLO);","update_rconst(var, khet_st, khet_tr, jx, VL_GLO);   \n            Fun(varNew, fix, rconst, varNew, Nfun,VL_GLO);")
+            line = line.replace("Fun(var, fix, rconst, Fcn0, Nfun, VL_GLO);","update_rconst(var, khet_st, khet_tr, jx, VL_GLO);   \n           Fun(var, fix, rconst, Fcn0, Nfun, VL_GLO);")
         rosfunc.append(line)
 
-
-#    if ( inject_rconst is True ):
-#        rosfunc.replace("Jac_sp(var, fix, rconst, jac0, Njac, VL_GLO);","update_rconst(var, khet_st, khet_tr, jx, VL_GLO);   \n Jac_sp(var, fix, rconst, jac0, Njac, VL_GLO); ")
 
 
 
@@ -1053,7 +1054,7 @@ pass
 #########################################################################################################
 #########################################################################################################
  
-def gen_kpp_integrate_cuda(file_prototype, source_cuda):
+def gen_kpp_integrate_cuda(file_prototype, source_cuda, inject_rconst):
     file_prototype.seek(0)
     lines_prototype = file_prototype.readlines()
     file_out = open("../smcl/messy_mecca_kpp_acc.cu","w")
@@ -1066,6 +1067,15 @@ def gen_kpp_integrate_cuda(file_prototype, source_cuda):
                     chunk_line = remove_precision_qualifiers(chunk_line)
                     file_out.write(chunk_line)
         else:
+
+            if ( inject_rconst is True ):
+                line = line.replace("Jac_sp(var, fix, rconst, jac0, Njac, VL_GLO)","update_rconst(var, khet_st, khet_tr, jx, VL_GLO);   \n        Jac_sp(var, fix, rconst, jac0, Njac, VL_GLO)")
+                line = line.replace("Fun(varNew, fix, rconst, varNew, Nfun,VL_GLO);","update_rconst(var, khet_st, khet_tr, jx, VL_GLO);   \n            Fun(varNew, fix, rconst, varNew, Nfun,VL_GLO);")
+                line = line.replace("Fun(var, fix, rconst, Fcn0, Nfun, VL_GLO);","update_rconst(var, khet_st, khet_tr, jx, VL_GLO);   \n           Fun(var, fix, rconst, Fcn0, Nfun, VL_GLO);")
+                line = line.replace("Fun(var, fix, rconst, dFdT, Nfun, VL_GLO);","update_rconst(var, khet_st, khet_tr, jx, VL_GLO);   \n       Fun(var, fix, rconst, dFdT, Nfun, VL_GLO);")
+
+
+
             file_out.write(line)
     file_out.close()
             
@@ -1340,6 +1350,66 @@ def add_cuda_compilation(file_specific,file_makefile,arch):
 
 pass
 
+
+#########################################################################################################
+#########################################################################################################
+
+# Based on the input files, select the proper flags
+def get_transformation_flags():
+
+    multifile = False
+    vectorize = False
+    indirect  = False
+    inject_rconst = False
+
+    # Check if kpp created indirect indexing
+    if ('LU_CROW(k+1)' in open("../smcl/messy_mecca_kpp.f90").read()) or ('LU_CROW(k+ 1)' in open("../smcl/messy_mecca_kpp.f90").read()):
+        print "Warning: Can't convert indirect indexing of file."
+        print "--> Change the decomp in the conf file or modify the output file.\n"
+        indirect = True
+
+
+    # Check if kpp created vector length chemistry
+    if '= C(1:VL,:)' in open("../smcl/messy_mecca_kpp.f90").read():
+        print "Can't convert vectorized version of file."
+        print "--> Change the rosenbrock_vec to reosenbrock_mz in the conf file.\n"
+        print "Exiting... \n"
+        vectorized = True
+        exit(-1)
+
+
+    # Check if kpp created the multiple files version.
+    if ( os.path.isfile("messy_mecca_kpp_global.f90") == True             and
+         os.path.isfile("messy_mecca_kpp_jacobian.f90") == True
+        ):
+        print "Multifile version detected!"
+        multifile = True
+
+    if (multifile == True):
+        file_messy_mecca_kpp = open("messy_mecca_kpp_linearalgebra.f90","r")
+        subroutines = find_subroutines(file_messy_mecca_kpp, ["KppDecomp","KppDecompCmplx"])
+        infile = " ".join(subroutines["kppdecomp"])
+        if 'LU_ICOL(kk)' in infile:
+            print "Multiple files with indirect indexing detected.\n"
+            indirect = True
+
+    if (multifile == True):
+        file_messy_mecca_kpp = open("../smcl/messy_mecca_kpp_integrator.f90","r")
+        lines = file_messy_mecca_kpp.readlines()
+        infile = " ".join(lines)
+        if '!     CALL Update_RCONST()' not in infile:
+            inject_rconst = True;
+    else:
+        file_messy_mecca_kpp = open("../smcl/messy_mecca_kpp.f90","r")
+        lines = file_messy_mecca_kpp.readlines()
+        infile = " ".join(lines)
+        if '!     CALL Update_RCONST()' not in infile:
+            inject_rconst = True;
+
+    return multifile, vectorize, indirect, inject_rconst
+
+pass
+
 #########################################################################################################
 #########################################################################################################
 
@@ -1421,6 +1491,7 @@ Select Rosenbrock solver:
 multifile = False
 vectorize = False
 indirect  = False
+inject_rconst = False
 
 
 ###############################################
@@ -1462,45 +1533,9 @@ if ( os.path.isfile("../smcl/messy_mecca_kpp.f90") == False             or
     print "Exiting... \n"
     exit(-1)
 
-# Check if kpp created indirect indexing
-if ('LU_CROW(k+1)' in open("../smcl/messy_mecca_kpp.f90").read()) or ('LU_CROW(k+ 1)' in open("../smcl/messy_mecca_kpp.f90").read()):
-    print "Warning: Can't convert indirect indexing of file."
-    print "--> Change the decomp in the conf file or modify the output file.\n"
-    indirect = True
 
 
-# Check if kpp created vector length chemistry
-if '= C(1:VL,:)' in open("../smcl/messy_mecca_kpp.f90").read():
-    print "Can't convert vectorized version of file."
-    print "--> Change the rosenbrock_vec to reosenbrock_mz in the conf file.\n"
-    print "Exiting... \n"
-    vectorized = True
-    exit(-1)
-
-
-# Check if kpp created the multiple files version.
-if ( os.path.isfile("messy_mecca_kpp_global.f90") == True             and
-     os.path.isfile("messy_mecca_kpp_jacobian.f90") == True
-     ):
-    print "Multifile version detected!"
-    multifile = True
-
- 
-
-
-
-
-if (multifile == True):
-    file_messy_mecca_kpp = open("messy_mecca_kpp_linearalgebra.f90","r")
-    subroutines = find_subroutines(file_messy_mecca_kpp, ["KppDecomp","KppDecompCmplx"])
-    infile = " ".join(subroutines["kppdecomp"])
-    if 'LU_ICOL(kk)' in infile:
-        print "Multiple files with indirect indexing detected.\n"
-        indirect = True
-
-
-
-
+multifile, vectorize, indirect, inject_rconst = get_transformation_flags()
 
 
 
@@ -1606,7 +1641,6 @@ else:
     lu_icol = find_LU_ICOL(file_messy_mecca_kpp, NVAR)
 
 
-
 ###############################################
 print "\n==> Step 3: Parsing function update_rconst."
 
@@ -1697,7 +1731,7 @@ source_cuda["ros_preparematrix"] = generate_prepareMatrix(lu_diag)
 ###############################################
 print "\n==> Step 9: Generating customized solver."
 
-source_cuda["special_ros"] = generate_special_ros(ros,True)
+source_cuda["special_ros"] = generate_special_ros(ros,inject_rconst)
 
 
 
@@ -1712,7 +1746,7 @@ source_cuda["call_kernel"] = generate_special_ros_caller(ros)
 
 print "\n==> Step 11: Generating kpp_integrate_cuda."
 
-gen_kpp_integrate_cuda(file_prototype, source_cuda)
+gen_kpp_integrate_cuda(file_prototype, source_cuda, inject_rconst)
 
 
 
