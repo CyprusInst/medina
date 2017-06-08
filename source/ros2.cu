@@ -245,7 +245,7 @@ void Rosenbrock_ros2(double * __restrict__ conc, const double Tstart, const doub
         for (int i=0; i<NFIX; i++)
             fix(index,i) = conc(index,NVAR+i);
 
-        update_rconst(var, khet_st, khet_tr, jx, VL_GLO); 
+        update_rconst(var, khet_st, khet_tr, jx, VL_GLO);
 
         ros_Integrator_ros2(var, fix, Tstart, Tend, Texit,
                 //  Integration parameters

@@ -346,7 +346,7 @@ void Rosenbrock_rodas3(double * __restrict__ conc, const double Tstart, const do
         for (int i=0; i<NFIX; i++)
             fix(index,i) = conc(index,NVAR+i);
 
-        update_rconst(conc, khet_st, khet_tr, jx, VL_GLO);
+        update_rconst(var, khet_st, khet_tr, jx, VL_GLO);
 
         ros_Integrator_rodas3(var, fix, Tstart, Tend, Texit,
                 //  Integration parameters
