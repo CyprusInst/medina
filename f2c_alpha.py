@@ -360,7 +360,17 @@ def get_rconst_locals(source):
                 rconst_locals.append(line.split("=",1)[0].strip())
     return rconst_locals
 
-def generate_update_rconst(rconst_ops,rconst_decls,locals):
+
+def create_rconst_init(source):
+    rconst_init=[]
+    for line in source:
+        if "rconst" in line:
+            eline = line.replace("\n","\n")
+            eline = re.sub(r"rconst(\([0-9]+\))",r"rconst(index,\1-1)",eline)
+            rconst_init.append( eline )
+    return rconst_init
+
+def generate_update_rconst(rconst_ops,rconst_decls,locals,rcint):
     update_rconst = []
     rename_tmp = False
 
@@ -406,6 +416,8 @@ def generate_update_rconst(rconst_ops,rconst_decls,locals):
         update_rconst.append("        "+line.strip()+";\n")
     update_rconst.append("\n")
     for line in rconst_ops:
+        update_rconst.append("        "+line.strip()+";\n")
+    for line in rcint:
         update_rconst.append("        "+line.strip()+";\n")
     update_rconst.append("    }\n")
     update_rconst.append("}\n")
@@ -1666,8 +1678,14 @@ if (multifile == True):
 
 source = rconst_preprocessor_1(source)
 rconst_ops,rconst_decls = split_rconst(source)
-locals = get_rconst_locals(rconst_decls)
-source_cuda["update_rconst"] = generate_update_rconst(rconst_ops,rconst_decls,locals)
+flocals = get_rconst_locals(rconst_decls)
+
+source = subroutines['initialize']
+source = remove_comments(source)
+source = decapitalize_vars(source,["rconst"])
+rinit  = create_rconst_init(source)
+
+source_cuda["update_rconst"] = generate_update_rconst(rconst_ops,rconst_decls,flocals,rinit)
 
 ###############################################
 print "\n==> Step 4: Parsing function kppsolve."
