@@ -1561,7 +1561,7 @@ file_makefile = open("../smcl/Makefile.m","r+")
 ###############################################
 print "==> Step 1: Detect subroutines in the file."
 
-subroutine_names = ["ros_PrepareMatrix","kppSolve","kppDecomp","Jac_sp","Fun","update_rconst"]
+subroutine_names = ["ros_PrepareMatrix","kppSolve","kppDecomp","Jac_sp","Fun","update_rconst","Initialize"]
 
 subroutines = {}
 source_cuda = {}
@@ -1583,7 +1583,11 @@ if (multifile == True):
     file_messy = open("messy_mecca_kpp_rates.f90","r")
     subroutines5 = find_subroutines(file_messy, ["Update_RCONST"])
 
-    subroutines = dict(  subroutines1.items() + subroutines2.items() + subroutines3.items() + subroutines4.items() + subroutines5.items()  )
+    file_messy = open("messy_mecca_kpp_initialize.f90","r")
+    subroutines6 = find_subroutines(file_messy, ["Initialize"])
+
+
+    subroutines = dict(  subroutines1.items() + subroutines2.items() + subroutines3.items() + subroutines4.items() + subroutines5.items()  + subroutines6.items() )
 
 else:
     subroutines = find_subroutines(file_messy_mecca_kpp, subroutine_names)
