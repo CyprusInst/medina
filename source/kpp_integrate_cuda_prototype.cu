@@ -34,6 +34,8 @@
 
 =#=#=#=#=#=#=#=#=#=#=defines_ind_4=#=#=#=#=#=#=#=#=#=#=
 
+=#=#=#=#=#=#=#=#=#=#=defines_ind_5=#=#=#=#=#=#=#=#=#=#=
+
 #define ifun 0
 #define ijac 1
 #define istp 2
@@ -146,6 +148,12 @@ __device__ inline void prefetch_ll2(const void *p) {
 #endif
 }
 
+
+
+__device__ void  update_rconst(const double * __restrict__ var,
+			       const double * __restrict__ khet_st, const double * __restrict__ khet_tr,
+			       const double * __restrict__ jx, 
+			       const int VL_GLO);
 
 /* This runs on CPU */
 double machine_eps_flt()
@@ -274,7 +282,10 @@ __device__ void ros_Decomp(double * __restrict__ Ghimj, int &Ndec, int VL_GLO)
 =#=#=#=#=#=#=#=#=#=#=Fun=#=#=#=#=#=#=#=#=#=#=
 
 __device__ void ros_FunTimeDerivative(const double T, double roundoff, double * __restrict__ var, const double * __restrict__ fix, 
-                                      const double * __restrict__ rconst, double *dFdT, double *Fcn0, int &Nfun, const int VL_GLO)
+                                      const double * __restrict__ rconst, double *dFdT, double *Fcn0, int &Nfun, 
+                                      const double * __restrict__ khet_st, const double * __restrict__ khet_tr,
+                                      const double * __restrict__ jx,
+                                      const int VL_GLO)
 {
     int index = blockIdx.x*blockDim.x+threadIdx.x;
     const double DELTAMIN = 1.0E-6;
@@ -303,6 +314,9 @@ __device__  static  int ros_Integrator(double * __restrict__ var, const double *
         //  cuda global mem buffers              
         const double * __restrict__ rconst,  const double * __restrict__ absTol, const double * __restrict__ relTol, double * __restrict__ varNew, double * __restrict__ Fcn0, 
         double * __restrict__ K, double * __restrict__ dFdT, double * __restrict__ jac0, double * __restrict__ Ghimj, double * __restrict__ varErr,
+        // for update_rconst
+        const double * __restrict__ khet_st, const double * __restrict__ khet_tr,
+        const double * __restrict__ jx,
         // VL_GLO
         const int VL_GLO)
 {
@@ -357,7 +371,7 @@ __device__  static  int ros_Integrator(double * __restrict__ var, const double *
 
         //   ~~~>  Compute the function derivative with respect to T
         if (!autonomous)
-            ros_FunTimeDerivative(T, roundoff, var, fix, rconst, dFdT, Fcn0, Nfun, VL_GLO); /// VAR READ - fcn0 read
+            ros_FunTimeDerivative(T, roundoff, var, fix, rconst, dFdT, Fcn0, Nfun, khet_st, khet_tr, jx,  VL_GLO); /// VAR READ - fcn0 read
 
         //   ~~~>   Compute the Jacobian at current time
         Jac_sp(var, fix, rconst, jac0, Njac, VL_GLO);   /// VAR READ 
@@ -569,137 +583,8 @@ __device__ __constant__  ros_t ros[5] = {
 
 __device__ double rconst_local[MAX_VL_GLO*NREACT];
 
+/* Initialize rconst local  */
 
-__global__ 
-void Rosenbrock(double * __restrict__ conc, const double Tstart, const double Tend, double * __restrict__ rstatus, int * __restrict__ istatus,
-                // values calculated from icntrl and rcntrl at host
-                const int autonomous, const int vectorTol, const int UplimTol, const int method, const int Max_no_steps,
-                const double Hmin, const double Hmax, const double Hstart, const double FacMin, const double FacMax, const double FacRej, const double FacSafe, const double roundoff,
-                //  cuda global mem buffers              
-                const double * __restrict__ absTol, const double * __restrict__ relTol,
-                // extra
-                const int VL_GLO)
-{
-    int index = blockIdx.x*blockDim.x+threadIdx.x;
-
-    /* Temporary arrays allocated in stack */
-
-    /* 
-     *  Optimization NOTE: runs faster on Tesla/Fermi 
-     *  when tempallocated on stack instead of heap.
-     *  In theory someone can aggregate accesses together,
-     *  however due to algorithm, threads access 
-     *  different parts of memory, making it harder to
-     *  optimize accesses. 
-     *
-     */
-    double varNew_stack[NVAR];
-    double var_stack[NVAR];
-    double varErr_stack[NVAR];
-    double fix_stack[NFIX];
-    double Fcn0_stack[NVAR];
-    double jac0_stack[LU_NONZERO];
-    double dFdT_stack[NVAR];
-    double Ghimj_stack[LU_NONZERO*3];
-    double K_stack[6*NVAR];
-
-
-    /* Allocated in Global mem */
-    double *rconst = rconst_local;
-
-    /* Allocated in stack */
-    double *Ghimj  = Ghimj_stack;
-    double *K      = K_stack;
-    double *varNew = varNew_stack;
-    double *Fcn0   = Fcn0_stack;
-    double *dFdT   = dFdT_stack;
-    double *jac0   = jac0_stack;
-    double *varErr = varErr_stack;
-    double *var    = var_stack;
-    double *fix    = fix_stack;  
-
-    if (index < VL_GLO)
-    {
-
-        int Nfun,Njac,Nstp,Nacc,Nrej,Ndec,Nsol,Nsng;
-        double Texit, Hexit;
-
-        Nfun = 0;
-        Njac = 0;
-        Nstp = 0;
-        Nacc = 0;
-        Nrej = 0;
-        Ndec = 0;
-        Nsol = 0;
-        Nsng = 0;
-
-        /* FIXME: add check for method */
-        const double *ros_A     = &ros[method-1].ros_A[0]; 
-        const double *ros_C     = &ros[method-1].ros_C[0];
-        const double *ros_M     = &ros[method-1].ros_M[0]; 
-        const double *ros_E     = &ros[method-1].ros_E[0];
-        const double *ros_Alpha = &ros[method-1].ros_Alpha[0]; 
-        const double *ros_Gamma = &ros[method-1].ros_Gamma[0]; 
-        const int    *ros_NewF  = &ros[method-1].ros_NewF[0];
-        const int     ros_S     =  ros[method-1].ros_S; 
-        const double  ros_ELO   =  ros[method-1].ros_ELO; 
-
-        /* Copy data from global memory to temporary array */
-        /*
-         * Optimization note: if we ever have enough constant
-         * memory, we could use it for storing the data.
-         * In current architectures if we use constant memory
-         * only a few threads will be able to run on the fly.
-         *
-         */
-        for (int i=0; i<NVAR; i++)
-            var(index,i) = conc(index,i);
-
-        for (int i=0; i<NFIX; i++)
-            fix(index,i) = conc(index,NVAR+i);
-
-        /* 
-         * Optimization TODO: create versions of the ros_integrator.
-         * Initial experiments show a 15-20% performance gain 
-         * using specialized version.
-         *
-         */
-        ros_Integrator(var, fix, Tstart, Tend, Texit,
-                //  Rosenbrock method coefficients
-                ros_S, ros_M, ros_E, ros_A, ros_C, 
-                ros_Alpha, ros_Gamma, ros_ELO, ros_NewF, 
-                //  Integration parameters
-                autonomous, vectorTol, Max_no_steps, 
-                roundoff, Hmin, Hmax, Hstart, Hexit, 
-                FacMin, FacMax, FacRej, FacSafe,
-                //  Status parameters
-                Nfun, Njac, Nstp, Nacc, Nrej, Ndec, Nsol, Nsng,
-                //  cuda global mem buffers              
-                rconst, absTol, relTol, varNew, Fcn0,  
-                K, dFdT, jac0, Ghimj,  varErr, VL_GLO
-                );
-
-        for (int i=0; i<NVAR; i++)
-            conc(index,i) = var(index,i); 
-
-
-        /* Statistics */
-        istatus(index,ifun) = Nfun;
-        istatus(index,ijac) = Njac;
-        istatus(index,istp) = Nstp;
-        istatus(index,iacc) = Nacc;
-        istatus(index,irej) = Nrej;
-        istatus(index,idec) = Ndec;
-        istatus(index,isol) = Nsol;
-        istatus(index,isng) = Nsng;
-        // Last T and H
-        rstatus(index,itexit) = Texit;
-        rstatus(index,ihexit) = Hexit; 
-    }
-}
-
-
-=#=#=#=#=#=#=#=#=#=#=special_ros=#=#=#=#=#=#=#=#=#=#=
 
 __device__ double k_3rd(double temp, double cair, double k0_300K, double n, double kinf_300K, double m, double fc)
     /*
@@ -751,15 +636,154 @@ __device__ double k_3rd_iupac(double temp, double cair, double k0_300K, double n
 }
 
 
-/* Initialize rconst local  */
 
 
-#if __CUDA_ARCH__ >= 350
-#undef rconst
-#define rconst(i,j)  rconst[(j)*(VL_GLO)+(i)]
-#endif
+__device__  double temp_gpu[MAX_VL_GLO];
+__device__  double press_gpu[MAX_VL_GLO];
+__device__  double cair_gpu[MAX_VL_GLO];
+
 
 =#=#=#=#=#=#=#=#=#=#=update_rconst=#=#=#=#=#=#=#=#=#=#=
+
+
+__global__ 
+void Rosenbrock(double * __restrict__ conc, const double Tstart, const double Tend, double * __restrict__ rstatus, int * __restrict__ istatus,
+                // values calculated from icntrl and rcntrl at host
+                const int autonomous, const int vectorTol, const int UplimTol, const int method, const int Max_no_steps,
+                const double Hmin, const double Hmax, const double Hstart, const double FacMin, const double FacMax, const double FacRej, const double FacSafe, const double roundoff,
+                // cuda global mem buffers              
+                const double * __restrict__ absTol, const double * __restrict__ relTol,
+                // for update_rconst
+    	        const double * __restrict__ khet_st, const double * __restrict__ khet_tr,
+		const double * __restrict__ jx,
+                // extra
+                const int VL_GLO)
+{
+    int index = blockIdx.x*blockDim.x+threadIdx.x;
+
+    /* Temporary arrays allocated in stack */
+
+    /* 
+     *  Optimization NOTE: runs faster on Tesla/Fermi 
+     *  when tempallocated on stack instead of heap.
+     *  In theory someone can aggregate accesses together,
+     *  however due to algorithm, threads access 
+     *  different parts of memory, making it harder to
+     *  optimize accesses. 
+     *
+     */
+    double varNew_stack[NVAR];
+    double var_stack[NSPEC];
+    double varErr_stack[NVAR];
+    double fix_stack[NFIX];
+    double Fcn0_stack[NVAR];
+    double jac0_stack[LU_NONZERO];
+    double dFdT_stack[NVAR];
+    double Ghimj_stack[LU_NONZERO*3];
+    double K_stack[6*NVAR];
+
+
+    /* Allocated in Global mem */
+    double *rconst = rconst_local;
+
+    /* Allocated in stack */
+    double *Ghimj  = Ghimj_stack;
+    double *K      = K_stack;
+    double *varNew = varNew_stack;
+    double *Fcn0   = Fcn0_stack;
+    double *dFdT   = dFdT_stack;
+    double *jac0   = jac0_stack;
+    double *varErr = varErr_stack;
+    double *var    = var_stack;
+    double *fix    = fix_stack;  
+
+    if (index < VL_GLO)
+    {
+
+        int Nfun,Njac,Nstp,Nacc,Nrej,Ndec,Nsol,Nsng;
+        double Texit, Hexit;
+
+        Nfun = 0;
+        Njac = 0;
+        Nstp = 0;
+        Nacc = 0;
+        Nrej = 0;
+        Ndec = 0;
+        Nsol = 0;
+        Nsng = 0;
+
+        /* FIXME: add check for method */
+        const double *ros_A     = &ros[method-1].ros_A[0]; 
+        const double *ros_C     = &ros[method-1].ros_C[0];
+        const double *ros_M     = &ros[method-1].ros_M[0]; 
+        const double *ros_E     = &ros[method-1].ros_E[0];
+        const double *ros_Alpha = &ros[method-1].ros_Alpha[0]; 
+        const double *ros_Gamma = &ros[method-1].ros_Gamma[0]; 
+        const int    *ros_NewF  = &ros[method-1].ros_NewF[0];
+        const int     ros_S     =  ros[method-1].ros_S; 
+        const double  ros_ELO   =  ros[method-1].ros_ELO; 
+
+
+
+
+
+        /* Copy data from global memory to temporary array */
+        /*
+         * Optimization note: if we ever have enough constant
+         * memory, we could use it for storing the data.
+         * In current architectures if we use constant memory
+         * only a few threads will be able to run on the fly.
+         *
+         */
+        for (int i=0; i<NSPEC; i++)
+            var(index,i) = conc(index,i);
+
+        for (int i=0; i<NFIX; i++)
+            fix(index,i) = conc(index,NVAR+i);
+
+
+        update_rconst(var, khet_st, khet_tr, jx, VL_GLO); 
+
+        ros_Integrator(var, fix, Tstart, Tend, Texit,
+                //  Rosenbrock method coefficients
+                ros_S, ros_M, ros_E, ros_A, ros_C, 
+                ros_Alpha, ros_Gamma, ros_ELO, ros_NewF, 
+                //  Integration parameters
+                autonomous, vectorTol, Max_no_steps, 
+                roundoff, Hmin, Hmax, Hstart, Hexit, 
+                FacMin, FacMax, FacRej, FacSafe,
+                //  Status parameters
+                Nfun, Njac, Nstp, Nacc, Nrej, Ndec, Nsol, Nsng,
+                //  cuda global mem buffers              
+                rconst, absTol, relTol, varNew, Fcn0,  
+                K, dFdT, jac0, Ghimj,  varErr, 
+                // For update rconst
+                khet_st, khet_tr, jx,
+                VL_GLO
+                );
+
+        for (int i=0; i<NVAR; i++)
+            conc(index,i) = var(index,i); 
+
+
+        /* Statistics */
+        istatus(index,ifun) = Nfun;
+        istatus(index,ijac) = Njac;
+        istatus(index,istp) = Nstp;
+        istatus(index,iacc) = Nacc;
+        istatus(index,irej) = Nrej;
+        istatus(index,idec) = Ndec;
+        istatus(index,isol) = Nsol;
+        istatus(index,isng) = Nsng;
+        // Last T and H
+        rstatus(index,itexit) = Texit;
+        rstatus(index,ihexit) = Hexit; 
+    }
+}
+
+
+=#=#=#=#=#=#=#=#=#=#=special_ros=#=#=#=#=#=#=#=#=#=#=
+
 
                                                         // no int8 in CUDA :(
 __global__ void reduce_istatus_1(int *istatus, int4 *tmp_out_1, int4 *tmp_out_2, int VL_GLO, int *xNacc, int *xNrej)
@@ -899,7 +923,6 @@ __global__ void reduce_istatus_2(int4 *tmp_out_1, int4 *tmp_out_2, int *out)
 /* Assuming different processes */
 enum { TRUE=1, FALSE=0 } ;
 double *d_conc, *d_temp, *d_press, *d_cair, *d_khet_st, *d_khet_tr, *d_jx;
-double *d_rconst;
 int initialized = FALSE;
 
 /* Device pointers pointing to GPU */
@@ -920,13 +943,9 @@ __host__ void init_first_time(int pe, int VL_GLO, int size_khet_st, int size_khe
     cudaDeviceSetCacheConfig(cudaFuncCachePreferL1); 
 
     gpuErrchk( cudaMalloc ((void **) &d_conc   , sizeof(double)*VL_GLO*(NSPEC))        );
-    gpuErrchk( cudaMalloc ((void **) &d_temp   , sizeof(double)*VL_GLO)              );
-    gpuErrchk( cudaMalloc ((void **) &d_press  , sizeof(double)*VL_GLO)              );
-    gpuErrchk( cudaMalloc ((void **) &d_cair   , sizeof(double)*VL_GLO)              );
     gpuErrchk( cudaMalloc ((void **) &d_khet_st, sizeof(double)*VL_GLO*size_khet_st) );
     gpuErrchk( cudaMalloc ((void **) &d_khet_tr, sizeof(double)*VL_GLO*size_khet_tr) );
     gpuErrchk( cudaMalloc ((void **) &d_jx     , sizeof(double)*VL_GLO*size_jx)      );
-    gpuErrchk( cudaMalloc ((void **) &d_rconst , sizeof(double)*VL_GLO*NREACT));
    
     gpuErrchk( cudaMalloc ((void **) &d_rstatus    , sizeof(double)*VL_GLO*2)          );
     gpuErrchk( cudaMalloc ((void **) &d_istatus    , sizeof(int)*VL_GLO*8)             );
@@ -1038,9 +1057,11 @@ extern "C" void kpp_integrate_cuda_( int *pe_p, int *sizes, double *time_step_le
 
     /* Copy data from host memory to device memory */
     gpuErrchk( cudaMemcpy(d_conc   , conc   	, sizeof(double)*VL_GLO*NSPEC        , cudaMemcpyHostToDevice) );
-    gpuErrchk( cudaMemcpy(d_temp   , temp   	, sizeof(double)*VL_GLO              , cudaMemcpyHostToDevice) );
-    gpuErrchk( cudaMemcpy(d_press  , press  	, sizeof(double)*VL_GLO              , cudaMemcpyHostToDevice) );
-    gpuErrchk( cudaMemcpy(d_cair   , cair   	, sizeof(double)*VL_GLO              , cudaMemcpyHostToDevice) );
+
+    gpuErrchk( cudaMemcpyToSymbol(temp_gpu   , temp   	, sizeof(double)*VL_GLO  ) );
+    gpuErrchk( cudaMemcpyToSymbol(press_gpu  , press  	, sizeof(double)*VL_GLO  ) );
+    gpuErrchk( cudaMemcpyToSymbol(cair_gpu   , cair   	, sizeof(double)*VL_GLO  ) );
+
     gpuErrchk( cudaMemcpy(d_khet_st, khet_st	, sizeof(double)*VL_GLO*size_khet_st , cudaMemcpyHostToDevice) );
     gpuErrchk( cudaMemcpy(d_khet_tr, khet_tr	, sizeof(double)*VL_GLO*size_khet_tr , cudaMemcpyHostToDevice) );
     gpuErrchk( cudaMemcpy(d_jx     , jx     	, sizeof(double)*VL_GLO*size_jx      , cudaMemcpyHostToDevice) );
@@ -1060,7 +1081,7 @@ extern "C" void kpp_integrate_cuda_( int *pe_p, int *sizes, double *time_step_le
 
 
     /* Execute the kernel */
-    update_rconst<<<dimGrid,dimBlock>>>(d_conc, d_temp, d_press, d_cair, d_khet_st, d_khet_tr, d_jx, VL_GLO); 
+    //update_rconst<<<dimGrid,dimBlock>>>(d_conc, d_khet_st, d_khet_tr, d_jx, VL_GLO); 
 
     GPU_DEBUG();
  

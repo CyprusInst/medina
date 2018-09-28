@@ -8,11 +8,6 @@
 #             Theodoros Christoudias - christoudias@cyi.ac.cy
 #             Giannis Ashiotis
 #
-# Version 1.1: 26 Nov 2016 - Added sanity checks for multi-file configurations.
-#                            Performance improvements
-#
-# Version 1.0: 26 Oct 2016 - Initial release
-#
 #########################################################################################################
 
 
@@ -36,7 +31,9 @@ def remove_comments(source):
             if line[0] == "!":
                 continue 
             line = line[:line.find("!")-1]+"\n"
-        out.append(line)
+            line = line.strip()
+        if (line != ''):
+            out.append(line)
     return out
 
 def strip_and_unroll_lines(source):
@@ -322,7 +319,9 @@ def rconst_preprocessor_1(source):
     file_temp.write("#define khet_st(i,j) khet_st(index,j)\n")
     file_temp.write("#define khet_tr(i,j) khet_tr(index,j)\n")
     file_temp.write("#define exp(i) exp(i)\n")
-    file_temp.write("#define C(i) conc(index,i)\n")
+    file_temp.write("#define C(i) var[i]\n")
+    file_temp.write("#define c(i) var[i]\n")
+    file_temp.write("#define REAL( i, SP) (i)\n")
     file_temp.write("#define temp(i) temp_loc\n")
     file_temp.write("#define cair(i) cair_loc\n")
     file_temp.write("#define press(i) press_loc\n")
@@ -361,7 +360,17 @@ def get_rconst_locals(source):
                 rconst_locals.append(line.split("=",1)[0].strip())
     return rconst_locals
 
-def generate_update_rconst(rconst_ops,rconst_decls,locals):
+
+def create_rconst_init(source):
+    rconst_init=[]
+    for line in source:
+        if "rconst" in line:
+            eline = line.replace("\n","\n")
+            eline = re.sub(r"rconst(\([0-9]+\))",r"rconst(index,\1-1)",eline)
+            rconst_init.append( eline )
+    return rconst_init
+
+def generate_update_rconst(rconst_ops,rconst_decls,locals,rcint):
     update_rconst = []
     rename_tmp = False
 
@@ -382,8 +391,8 @@ def generate_update_rconst(rconst_ops,rconst_decls,locals):
 
 
     update_rconst.append( \
-    "__global__ void  update_rconst(const double * __restrict__ conc, const double * __restrict__ temp, const double * __restrict__ press,\n \
-			       const double * __restrict__ cair, const double * __restrict__ khet_st, const double * __restrict__ khet_tr,\n \
+    "__device__ void  update_rconst(const double * __restrict__ var, \n \
+			       const double * __restrict__ khet_st, const double * __restrict__ khet_tr,\n \
 			       const double * __restrict__ jx, \n\
 			       const int VL_GLO)\n")
     update_rconst.append("{\n")
@@ -391,11 +400,10 @@ def generate_update_rconst(rconst_ops,rconst_decls,locals):
     update_rconst.append("    /* Set local buffer */\n")
     update_rconst.append("    double *rconst = rconst_local;\n")
     update_rconst.append("\n")
-    update_rconst.append("    if (index < VL_GLO)\n")
     update_rconst.append("    {\n")
-    update_rconst.append("        double temp_loc  = temp[index];\n")
-    update_rconst.append("        double press_loc = press[index];\n")
-    update_rconst.append("        double cair_loc  = cair[index];\n")
+    update_rconst.append("        const double temp_loc  = temp_gpu[index];\n")
+    update_rconst.append("        const double press_loc = press_gpu[index];\n")
+    update_rconst.append("        const double cair_loc  = cair_gpu[index];\n")
     update_rconst.append("\n")
     line = "        double"
     for i in locals:
@@ -408,6 +416,8 @@ def generate_update_rconst(rconst_ops,rconst_decls,locals):
         update_rconst.append("        "+line.strip()+";\n")
     update_rconst.append("\n")
     for line in rconst_ops:
+        update_rconst.append("        "+line.strip()+";\n")
+    for line in rcint:
         update_rconst.append("        "+line.strip()+";\n")
     update_rconst.append("    }\n")
     update_rconst.append("}\n")
@@ -768,7 +778,7 @@ def find_LU_ICOL(file_in, NVAR):
     lu_diag = re.sub(r"dimension\([0-9]+\)::lu_icol_[0-9]\s?=\s?\(\/",r",",lu_diag)
     lu_diag = re.sub(r"dimension\([0-9]+\)", r"",lu_diag)
     lu_diag = re.sub(r"::", r"",lu_diag)
-    lu_diag = re.sub(r"lu_icol_[0-9]\s?=\s?",r"",lu_diag)
+    lu_diag = re.sub(r"lu_icol_[0-9]+\s?=\s?",r"",lu_diag)
     lu_diag = re.sub(r"\(/",r"",lu_diag)
     lu_diag = lu_diag.replace("/)\ninteger","")
     lu_diag = lu_diag.replace("parameter,","")
@@ -806,7 +816,7 @@ pass
 
 #########################################################################################################
         
-def generate_special_ros(ros):
+def generate_special_ros(ros,inject_rconst):
 
     
     
@@ -827,7 +837,15 @@ def generate_special_ros(ros):
     rosfunc = []
     source = file_ros.readlines()
     for line in source:
+        if ( inject_rconst is True ):
+            line = line.replace("Jac_sp(var, fix, rconst, jac0, Njac, VL_GLO)","update_rconst(var, khet_st, khet_tr, jx, VL_GLO);   \n        Jac_sp(var, fix, rconst, jac0, Njac, VL_GLO)")
+            line = line.replace("Fun(varNew, fix, rconst, varNew, Nfun,VL_GLO);","update_rconst(var, khet_st, khet_tr, jx, VL_GLO);   \n            Fun(varNew, fix, rconst, varNew, Nfun,VL_GLO);")
+            line = line.replace("Fun(var, fix, rconst, Fcn0, Nfun, VL_GLO);","update_rconst(var, khet_st, khet_tr, jx, VL_GLO);   \n           Fun(var, fix, rconst, Fcn0, Nfun, VL_GLO);")
         rosfunc.append(line)
+
+
+
+
     return rosfunc 
  
  
@@ -845,6 +863,7 @@ def generate_special_ros_caller(ros):
                     Hmin, Hmax, Hstart, FacMin, FacMax, FacRej, FacSafe, roundoff,\n\
                     //  cuda global mem buffers              \n\
                     d_absTol, d_relTol,   \n\
+                    d_khet_st, d_khet_tr, d_jx, \n\
                     // extra - vector lenght and processor\n\
                     VL_GLO); '
 
@@ -855,6 +874,7 @@ def generate_special_ros_caller(ros):
                     autonomous, vectorTol, UplimTol, Max_no_steps,\n\
                     Hmin, Hmax, Hstart, FacMin, FacMax, FacRej, FacSafe, roundoff,\n\
                     d_absTol, d_relTol,\n\
+                    d_khet_st, d_khet_tr, d_jx, \n\
                     VL_GLO);\n\
             break;\n\
         default: \n' + default_call + '\n\
@@ -869,6 +889,7 @@ def generate_special_ros_caller(ros):
                     autonomous, vectorTol, UplimTol, Max_no_steps,\n\
                     Hmin, Hmax, Hstart, FacMin, FacMax, FacRej, FacSafe, roundoff,\n\
                     d_absTol, d_relTol,\n\
+                    d_khet_st, d_khet_tr, d_jx, \n\
                     VL_GLO);\n\
             break;\n\
         default: \n' + default_call + '\n\
@@ -884,6 +905,7 @@ def generate_special_ros_caller(ros):
                     autonomous, vectorTol, UplimTol, Max_no_steps,\n\
                     Hmin, Hmax, Hstart, FacMin, FacMax, FacRej, FacSafe, roundoff,\n\
                     d_absTol, d_relTol,\n\
+                    d_khet_st, d_khet_tr, d_jx, \n\
                     VL_GLO);\n\
             break;\n\
         default: \n' + default_call + '\n\
@@ -899,6 +921,7 @@ def generate_special_ros_caller(ros):
                     autonomous, vectorTol, UplimTol, Max_no_steps,\n\
                     Hmin, Hmax, Hstart, FacMin, FacMax, FacRej, FacSafe, roundoff,\n\
                     d_absTol, d_relTol,\n\
+                    d_khet_st, d_khet_tr, d_jx, \n\
                     VL_GLO);\n\
             break;\n\
         default: \n' + default_call + '\n\
@@ -914,6 +937,7 @@ def generate_special_ros_caller(ros):
                     autonomous, vectorTol, UplimTol, Max_no_steps,\n\
                     Hmin, Hmax, Hstart, FacMin, FacMax, FacRej, FacSafe, roundoff,\n\
                     d_absTol, d_relTol,\n\
+                    d_khet_st, d_khet_tr, d_jx, \n\
                     VL_GLO);\n\
             break;\n\
         default: \n' + default_call + '\n\
@@ -1007,12 +1031,42 @@ def generate_define_vars(file_in,var_names):
     if var_names != []:
         print "Warning: variables "+str(var_names)+" were not found"
     return out
-    
+  
+#
+# Takes prefix of variables as input and the file
+# Returns definitions using index
+#
+def generate_definitions_global(file_in,var_prefix):
+    file_in.seek(0)    
+    source = file_in.readlines()
+    source = remove_comments(source)
+    source = strip_and_unroll_lines(source)
+    out = []
+
+    for var_name in var_prefix:
+        for line in source:
+
+            # ignore some definitions that are not double
+            if "INTEGER" in line:
+                continue
+
+            # we reached after the definitions
+            if "interface" in line:
+                break
+
+            allvars = re.findall(r'(' + var_name  + '(\w+)(\s+)?)=\s+(([0-9,E,\-,.])+(\s+)?)[,&,\n]',line)
+
+            if ( len(allvars)  > 0):
+                for definition in allvars:
+                    out.append("#define "+definition[0]+"  ("+str(definition[3])+")\n")
+                    
+    return out
+
 pass
 #########################################################################################################
 #########################################################################################################
  
-def gen_kpp_integrate_cuda(file_prototype, source_cuda):
+def gen_kpp_integrate_cuda(file_prototype, source_cuda, inject_rconst):
     file_prototype.seek(0)
     lines_prototype = file_prototype.readlines()
     file_out = open("../smcl/messy_mecca_kpp_acc.cu","w")
@@ -1025,6 +1079,15 @@ def gen_kpp_integrate_cuda(file_prototype, source_cuda):
                     chunk_line = remove_precision_qualifiers(chunk_line)
                     file_out.write(chunk_line)
         else:
+
+            if ( inject_rconst is True ):
+                line = line.replace("Jac_sp(var, fix, rconst, jac0, Njac, VL_GLO)","update_rconst(var, khet_st, khet_tr, jx, VL_GLO);   \n        Jac_sp(var, fix, rconst, jac0, Njac, VL_GLO)")
+                line = line.replace("Fun(varNew, fix, rconst, varNew, Nfun,VL_GLO);","update_rconst(var, khet_st, khet_tr, jx, VL_GLO);   \n            Fun(varNew, fix, rconst, varNew, Nfun,VL_GLO);")
+                line = line.replace("Fun(var, fix, rconst, Fcn0, Nfun, VL_GLO);","update_rconst(var, khet_st, khet_tr, jx, VL_GLO);   \n           Fun(var, fix, rconst, Fcn0, Nfun, VL_GLO);")
+                line = line.replace("Fun(var, fix, rconst, dFdT, Nfun, VL_GLO);","update_rconst(var, khet_st, khet_tr, jx, VL_GLO);   \n       Fun(var, fix, rconst, dFdT, Nfun, VL_GLO);")
+
+
+
             file_out.write(line)
     file_out.close()
             
@@ -1299,6 +1362,66 @@ def add_cuda_compilation(file_specific,file_makefile,arch):
 
 pass
 
+
+#########################################################################################################
+#########################################################################################################
+
+# Based on the input files, select the proper flags
+def get_transformation_flags():
+
+    multifile = False
+    vectorize = False
+    indirect  = False
+    inject_rconst = False
+
+    # Check if kpp created indirect indexing
+    if ('LU_CROW(k+1)' in open("../smcl/messy_mecca_kpp.f90").read()) or ('LU_CROW(k+ 1)' in open("../smcl/messy_mecca_kpp.f90").read()):
+        print "Warning: Can't convert indirect indexing of file."
+        print "--> Change the decomp in the conf file or modify the output file.\n"
+        indirect = True
+
+
+    # Check if kpp created vector length chemistry
+    if '= C(1:VL,:)' in open("../smcl/messy_mecca_kpp.f90").read():
+        print "Can't convert vectorized version of file."
+        print "--> Change the rosenbrock_vec to reosenbrock_mz in the conf file.\n"
+        print "Exiting... \n"
+        vectorized = True
+        exit(-1)
+
+
+    # Check if kpp created the multiple files version.
+    if ( os.path.isfile("messy_mecca_kpp_global.f90") == True             and
+         os.path.isfile("messy_mecca_kpp_jacobian.f90") == True
+        ):
+        print "Multifile version detected!"
+        multifile = True
+
+    if (multifile == True):
+        file_messy_mecca_kpp = open("messy_mecca_kpp_linearalgebra.f90","r")
+        subroutines = find_subroutines(file_messy_mecca_kpp, ["KppDecomp","KppDecompCmplx"])
+        infile = " ".join(subroutines["kppdecomp"])
+        if 'LU_ICOL(kk)' in infile:
+            print "Multiple files with indirect indexing detected.\n"
+            indirect = True
+
+    if (multifile == True):
+        file_messy_mecca_kpp = open("../smcl/messy_mecca_kpp_integrator.f90","r")
+        lines = file_messy_mecca_kpp.readlines()
+        infile = " ".join(lines)
+        if '!     CALL Update_RCONST()' not in infile:
+            inject_rconst = True;
+    else:
+        file_messy_mecca_kpp = open("../smcl/messy_mecca_kpp.f90","r")
+        lines = file_messy_mecca_kpp.readlines()
+        infile = " ".join(lines)
+        if '!     CALL Update_RCONST()' not in infile:
+            inject_rconst = True;
+
+    return multifile, vectorize, indirect, inject_rconst
+
+pass
+
 #########################################################################################################
 #########################################################################################################
 
@@ -1335,9 +1458,9 @@ def print_menu_make_selection(ros,gpu):
     Select CUDA architecture: 
 
                 1. CUDA 2.0 ( Best compatibility, FERMI architecture )
-                2. CUDA 3.5 ( KEPLER or later )
-                3. CUDA 5.2 ( MAXWELL or later )
-                4. CUDA 6.0 ( PASCAL or later )
+                2. CUDA 3.5 ( KEPLER or later                        )
+                3. CUDA 5.2 ( MAXWELL or later                       )
+                4. CUDA 6.0 ( PASCAL or later                        )
 
                 """)
 
@@ -1351,12 +1474,12 @@ def print_menu_make_selection(ros,gpu):
 
 Select Rosenbrock solver: 
 
-            1. All  ( Selects based on the runtime option )
-            2. Ros2 ( 2-stage L-stable - FASTEST )
-            3. Ros3 ( 3-stage L-stable )
-            4. Ros4 ( 4-stage L-stable - RECOMMEND )
-            5. Rodas3 ( 4-stage stiffly accurate )
-            6. Rodas4 ( 6-stage stiffly accurate - SLOWEST )
+            1. All    ( Selects based on the runtime option  )
+            2. Ros2   ( 2-stage L-stable - FASTEST           )
+            3. Ros3   ( 3-stage L-stable - RECOMMEND         )
+            4. Ros4   ( 4-stage L-stable                     )
+            5. Rodas3 ( 4-stage stiffly accurate             )
+            6. Rodas4 ( 6-stage stiffly accurate - SLOWEST   )
 
             """)
 
@@ -1380,6 +1503,7 @@ Select Rosenbrock solver:
 multifile = False
 vectorize = False
 indirect  = False
+inject_rconst = False
 
 
 ###############################################
@@ -1421,48 +1545,9 @@ if ( os.path.isfile("../smcl/messy_mecca_kpp.f90") == False             or
     print "Exiting... \n"
     exit(-1)
 
-# Check if kpp created indirect indexing
-if 'LU_CROW(k+1)' in open("../smcl/messy_mecca_kpp.f90").read():
-    print "Can't convert indirect indexing of file."
-    print "--> Change the decomp in the conf file.\n"
-    print "Exiting... \n"
-    indirect = True
-    exit(-1)
 
 
-
-# Check if kpp created vector length chemistry
-if '= C(1:VL,:)' in open("../smcl/messy_mecca_kpp.f90").read():
-    print "Can't convert vectorized version of file."
-    print "--> Change the rosenbrock_vec to reosenbrock_mz in the conf file.\n"
-    print "Exiting... \n"
-    vectorized = True
-    exit(-1)
-
-
-# Check if kpp created the multiple files version.
-if ( os.path.isfile("messy_mecca_kpp_global.f90") == True             and
-     os.path.isfile("messy_mecca_kpp_jacobian.f90") == True
-     ):
-    print "Multifile version detected!"
-    multifile = True
-
- 
-
-
-
-
-if (multifile == True):
-    file_messy_mecca_kpp = open("messy_mecca_kpp_linearalgebra.f90","r")
-    subroutines = find_subroutines(file_messy_mecca_kpp, ["KppDecomp","KppDecompCmplx"])
-    infile = " ".join(subroutines["kppdecomp"])
-    if 'LU_ICOL(kk)' in infile:
-        print "Multiple files with indirect indexing detected.\n"
-        indirect = True
-
-
-
-
+multifile, vectorize, indirect, inject_rconst = get_transformation_flags()
 
 
 
@@ -1488,7 +1573,7 @@ file_makefile = open("../smcl/Makefile.m","r+")
 ###############################################
 print "==> Step 1: Detect subroutines in the file."
 
-subroutine_names = ["ros_PrepareMatrix","kppSolve","kppDecomp","Jac_sp","Fun","update_rconst"]
+subroutine_names = ["ros_PrepareMatrix","kppSolve","kppDecomp","Jac_sp","Fun","update_rconst","Initialize"]
 
 subroutines = {}
 source_cuda = {}
@@ -1510,7 +1595,11 @@ if (multifile == True):
     file_messy = open("messy_mecca_kpp_rates.f90","r")
     subroutines5 = find_subroutines(file_messy, ["Update_RCONST"])
 
-    subroutines = dict(  subroutines1.items() + subroutines2.items() + subroutines3.items() + subroutines4.items() + subroutines5.items()  )
+    file_messy = open("messy_mecca_kpp_initialize.f90","r")
+    subroutines6 = find_subroutines(file_messy, ["Initialize"])
+
+
+    subroutines = dict(  subroutines1.items() + subroutines2.items() + subroutines3.items() + subroutines4.items() + subroutines5.items()  + subroutines6.items() )
 
 else:
     subroutines = find_subroutines(file_messy_mecca_kpp, subroutine_names)
@@ -1536,12 +1625,15 @@ if (multifile == True):
     source_cuda["defines_ind_2"] = generate_define_indices_many_lines(file_messy_mecca_kpp_parameters,"ind")
     source_cuda["defines_ind_3"] = generate_define_indices_one_line(file_messy_mecca_kpp_global,"ihs")
     source_cuda["defines_ind_4"] = generate_define_indices_one_line(file_messy_mecca_kpp_global,"iht")
+    source_cuda["defines_ind_5"] = generate_definitions_global(file_messy_mecca_kpp_global ,["k_","f_","a_"])
 else:
     source_cuda["defines_vars_2"] = generate_define_vars(file_messy_mecca_kpp,["NSPEC","NVAR","NFIX","NREACT","LU_NONZERO","NBSIZE"])
     source_cuda["defines_vars_2"].append(generate_define_NBSIZE(subroutines["jac_sp"]))
     source_cuda["defines_ind_2"] = generate_define_indices_many_lines(file_messy_mecca_kpp,"ind")
     source_cuda["defines_ind_3"] = generate_define_indices_one_line(file_messy_mecca_kpp,"ihs")
     source_cuda["defines_ind_4"] = generate_define_indices_one_line(file_messy_mecca_kpp,"iht")
+    source_cuda["defines_ind_5"] = generate_definitions_global(file_messy_mecca_kpp,["k_","f_","a_"])
+
 
 
 # read the values 
@@ -1565,7 +1657,6 @@ else:
     lu_icol = find_LU_ICOL(file_messy_mecca_kpp, NVAR)
 
 
-
 ###############################################
 print "\n==> Step 3: Parsing function update_rconst."
 
@@ -1587,8 +1678,14 @@ if (multifile == True):
 
 source = rconst_preprocessor_1(source)
 rconst_ops,rconst_decls = split_rconst(source)
-locals = get_rconst_locals(rconst_decls)
-source_cuda["update_rconst"] = generate_update_rconst(rconst_ops,rconst_decls,locals)
+flocals = get_rconst_locals(rconst_decls)
+
+source = subroutines['initialize']
+source = remove_comments(source)
+source = decapitalize_vars(source,["rconst"])
+rinit  = create_rconst_init(source)
+
+source_cuda["update_rconst"] = generate_update_rconst(rconst_ops,rconst_decls,flocals,rinit)
 
 ###############################################
 print "\n==> Step 4: Parsing function kppsolve."
@@ -1656,7 +1753,7 @@ source_cuda["ros_preparematrix"] = generate_prepareMatrix(lu_diag)
 ###############################################
 print "\n==> Step 9: Generating customized solver."
 
-source_cuda["special_ros"] = generate_special_ros(ros)
+source_cuda["special_ros"] = generate_special_ros(ros,inject_rconst)
 
 
 
@@ -1671,7 +1768,11 @@ source_cuda["call_kernel"] = generate_special_ros_caller(ros)
 
 print "\n==> Step 11: Generating kpp_integrate_cuda."
 
-gen_kpp_integrate_cuda(file_prototype, source_cuda)
+gen_kpp_integrate_cuda(file_prototype, source_cuda, inject_rconst)
+
+
+
+###############################################
 
 print "\n==> Step 12: Generating meessy_mecca_kpp replacement."
 generate_c2f_interface(file_messy_mecca_kpp)

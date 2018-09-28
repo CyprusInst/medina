@@ -10,6 +10,9 @@ __device__  static  int ros_Integrator_rodas3(double * __restrict__ var, const d
         //  cuda global mem buffers              
         const double * __restrict__ rconst,  const double * __restrict__ absTol, const double * __restrict__ relTol, double * __restrict__ varNew, double * __restrict__ Fcn0, 
         double * __restrict__ K, double * __restrict__ dFdT, double * __restrict__ jac0, double * __restrict__ Ghimj, double * __restrict__ varErr,
+        // for update_rconst
+        const double * __restrict__ khet_st, const double * __restrict__ khet_tr,
+        const double * __restrict__ jx,
         // VL_GLO
         const int VL_GLO)
 {
@@ -116,7 +119,7 @@ __device__  static  int ros_Integrator_rodas3(double * __restrict__ var, const d
 
         //   ~~~>  Compute the function derivative with respect to T
         if (!autonomous)
-            ros_FunTimeDerivative(T, roundoff, var, fix, rconst, dFdT, Fcn0, Nfun, VL_GLO); /// VAR READ - fcn0 read
+            ros_FunTimeDerivative(T, roundoff, var, fix, rconst, dFdT, Fcn0, Nfun, khet_st, khet_tr, jx,  VL_GLO); /// VAR READ - fcn0 read
 
         //   ~~~>   Compute the Jacobian at current time
         Jac_sp(var, fix, rconst, jac0, Njac, VL_GLO);   /// VAR READ 
@@ -257,6 +260,8 @@ void Rosenbrock_rodas3(double * __restrict__ conc, const double Tstart, const do
                 const double Hmin, const double Hmax, const double Hstart, const double FacMin, const double FacMax, const double FacRej, const double FacSafe, const double roundoff,
                 //  cuda global mem buffers              
                 const double * __restrict__ absTol, const double * __restrict__ relTol,
+    	        const double * __restrict__ khet_st, const double * __restrict__ khet_tr,
+		const double * __restrict__ jx,
                 // extra
                 const int VL_GLO)
 {
@@ -326,6 +331,7 @@ void Rosenbrock_rodas3(double * __restrict__ conc, const double Tstart, const do
         const int     ros_S     =  ros[method-1].ros_S; 
         const double  ros_ELO   =  ros[method-1].ros_ELO; 
 
+
         /* Copy data from global memory to temporary array */
         /*
          * Optimization note: if we ever have enough constant
@@ -334,18 +340,14 @@ void Rosenbrock_rodas3(double * __restrict__ conc, const double Tstart, const do
          * only a few threads will be able to run on the fly.
          *
          */
-        for (int i=0; i<NVAR; i++)
+        for (int i=0; i<NSPEC; i++)
             var(index,i) = conc(index,i);
 
         for (int i=0; i<NFIX; i++)
             fix(index,i) = conc(index,NVAR+i);
 
-        /* 
-         * Optimization TODO: create versions of the ros_integrator.
-         * Initial experiments show a 15-20% performance gain 
-         * using specialized version.
-         *
-         */
+        update_rconst(var, khet_st, khet_tr, jx, VL_GLO);
+
         ros_Integrator_rodas3(var, fix, Tstart, Tend, Texit,
                 //  Integration parameters
                 autonomous, vectorTol, Max_no_steps, 
@@ -355,7 +357,10 @@ void Rosenbrock_rodas3(double * __restrict__ conc, const double Tstart, const do
                 Nfun, Njac, Nstp, Nacc, Nrej, Ndec, Nsol, Nsng,
                 //  cuda global mem buffers              
                 rconst, absTol, relTol, varNew, Fcn0,  
-                K, dFdT, jac0, Ghimj,  varErr, VL_GLO
+                K, dFdT, jac0, Ghimj,  varErr, 
+                // For update rconst
+                khet_st, khet_tr, jx,
+                VL_GLO
                 );
 
         for (int i=0; i<NVAR; i++)
