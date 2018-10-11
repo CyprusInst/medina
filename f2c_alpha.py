@@ -1427,7 +1427,7 @@ pass
 
 def print_warning():
     print '\033[1m' + "\n####################################################################################################" 
-    print   "## WARNING!! ALPHA VERSION ! PLEASE REPORT TO PACKAGE MAINTAINERS ANY BUGS OR UNEXPECTED BEHAVIOUR."
+    print   "## WARNING!! BETA VERSION ! PLEASE REPORT TO PACKAGE MAINTAINERS ANY BUGS OR UNEXPECTED BEHAVIOUR."
     print   "####################################################################################################\n" 
     print '\033[0m'
 pass
