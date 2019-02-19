@@ -204,6 +204,25 @@ __device__  static double alpha_AN(const int n, const int ro2type, const double 
     alpha_a    = k_ratio/(1+ k_ratio) *m;
     return alpha_a;
 }
+__device__  static double alpha_AN(const int n, const int ro2type, const int bcarb, const int gcarb, const int abic, const double temp, const double cair){
+    double alpha=2.E-22, beta=1.0, Yinf_298K=0.43,  F=0.41, m0=0., minf=8.0;
+    double Y0_298K, Y0_298K_tp, Yinf_298K_t, zeta, k_ratio, alpha_a;
+    double bcf=1., gcf=1., abf=1.;
+    double m = 1.; //According to Teng, ref3189
+
+if (bcarb == 1) { bcf = 0.19; }// derived from Praske, ref3190: alpha_AN = 0.03 for the secondary HMKO2 relative to alpha_AN for 6C RO2 (0.16)
+if (gcarb == 1) {gcf = 0.44; }// derived from Praske, ref3190: alpha_AN = 0.07 for the primary HMKO2 relative to alpha_AN for 6C RO2 (0.16)
+if (abic == 1) { abf = 0.24; }// derived from the ratio of AN- yield for toluene from Elrod et al. (ref3180), 5.5 0x1.9206e69676542p+ 229t & 
+                              // 200 torr, and this SAR for linear alkyl RO2 with 9 heavy atoms, 23.3%
+
+    Y0_298K     = alpha*exp(beta*n);
+    Y0_298K_tp  = Y0_298K *cair *pow((temp/298),(- m0));
+    Yinf_298K_t = Yinf_298K * pow((temp/298),(- minf));
+    zeta        = 1/(1+ pow(log10(Y0_298K_tp/Yinf_298K_t),2));
+    k_ratio     = (Y0_298K_tp/(1+ Y0_298K_tp/Yinf_298K_t))*pow(F,zeta);
+    alpha_a    = k_ratio/(1+ k_ratio) *m*bcf*gcf*abf;
+    return alpha_a;
+}
 __device__ double ros_ErrorNorm(double * __restrict__ var, double * __restrict__ varNew, double * __restrict__ varErr, 
                                 const double * __restrict__ absTol, const double * __restrict__ relTol,
                                 const int vectorTol )
