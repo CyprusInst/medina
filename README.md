@@ -9,8 +9,9 @@ For assistance or to report problems please contact:* christoudias@cyi.ac.cy
  
 ## 1. Requirements:
 
-Software: CUDA compiler and python are required for the processor. 
-Hardware: CUDA compatible GPU. 
+Software: CUDA compiler and python are required for the pre-processor. 
+
+Hardware: CUDA compatible GPU (Fermi, Kepler, Pascal, Volta, or later). 
 
 ## 2. Installation:
 
@@ -53,8 +54,6 @@ total number of CPU cores that can run simultaneously.
 Warning: When running multiple CPU processes per GPU, if memory is not enough
 the CUDA runtime will fail silently - without any error. A solution in that
 case is to use the Multi-process service (MPS) provided by NVIDIA as an alternative.
-
-No issues reported with the latest generation of NVIDIA Pascal architectures.
 
 ## 5. Unit testing
 
