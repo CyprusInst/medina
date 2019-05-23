@@ -56,7 +56,7 @@ case is to use the Multi-process service (MPS) provided by NVIDIA as an alternat
 
 No issues reported with the latest generation of NVIDIA Pascal architectures.
 
-## Unit tests
+## 5. Unit testing
 
 A self-contained unit test is included in the ditribution. The test includes 
 reference source files implementing a simplified chemistry mechanism and 
