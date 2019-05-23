@@ -5,8 +5,7 @@ equivalent to the MESSy red traffic light status.
 No unexpected behaviour was observed under testing, and users are 
 invited to test with their model setup. However, no express guarantee
 is provided for production simulations. 
-For assistance or to report problems please contact the maintainers:*
-christoudias@cyi.ac.cy; m.alvanos@cyi.ac.cy
+For assistance or to report problems please contact:* christoudias@cyi.ac.cy
  
 ## 1. Requirements:
 
