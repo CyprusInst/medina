@@ -65,3 +65,9 @@ and auto-generated CUDA versions.
 
 The test is executed by sourcing `driver.sh` under the `tests` directory. 
 A utility script that compares the test solver output is also included in `tests/compare.py`
+
+## 6. References
+
+Alvanos, M. and Christoudias, T.: GPU-accelerated atmospheric chemical kinetics in the ECHAM/MESSy (EMAC) Earth system model (version 2.52), Geosci. Model Dev., 10, 3679-3693, https://doi.org/10.5194/gmd-10-3679-2017, 2017. 
+
+Alvanos, M. and Christoudias, T., 2017. MEDINA: MECCA Development in Accelerators – KPP Fortran to CUDA source-to-source Pre-processor. Journal of Open Research Software, 5(1), p.13. DOI: http://doi.org/10.5334/jors.158
