@@ -43,17 +43,19 @@ the preprocessor will stop with an error message.
 
 ## 4. Running EMAC with GPU MECCA and improving performance:
 
-The runtime parameter `NPROMA` should be set to a value not greater than 128.
-This allows for optimal memory allocation and performance on the GPU.
+During testing it was found that the runtime parameter `NPROMA` should be set 
+to a value not greater than 128 for optimal memory allocation and performance on the GPU.
 
 Each CPU process that offloads to GPU requires a chunk of the GPU VRAM memory,
 dependent on the number of species and reaction constants in the MECCA mechanism. 
 The number of GPUs per node and VRAM memory available in each GPU dictates the
 total number of CPU cores that can run simultaneously.
 
-Warning: When running multiple CPU processes per GPU, if memory is not enough
-the CUDA runtime will fail silently - without any error. A solution in that
-case is to use the Multi-process service (MPS) provided by NVIDIA as an alternative.
+To run multiple CPU processes per GPU, the Multi-process service (MPS) provided 
+by NVIDIA can be used.
+
+Warning: In K80 and older generation accelerators, if memory is not enough
+the CUDA runtime will fail silently - without any error. 
 
 ## 5. Unit testing
 
