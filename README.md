@@ -81,3 +81,7 @@ A utility script that compares the test solver output is also included in `tests
 Alvanos, M. and Christoudias, T.: GPU-accelerated atmospheric chemical kinetics in the ECHAM/MESSy (EMAC) Earth system model (version 2.52), Geosci. Model Dev., 10, 3679-3693, https://doi.org/10.5194/gmd-10-3679-2017, 2017. 
 
 Alvanos, M. and Christoudias, T., 2017. MEDINA: MECCA Development in Accelerators – KPP Fortran to CUDA source-to-source Pre-processor. Journal of Open Research Software, 5(1), p.13. DOI: http://doi.org/10.5334/jors.158
+
+M. Alvanos and T. Christoudias, "Accelerating Atmospheric Chemical Kinetics for Climate Simulations," in IEEE Transactions on Parallel and Distributed Systems. DOI: 10.1109/TPDS.2019.2918798
+URL: http://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=8723098&isnumber=4359390
+
