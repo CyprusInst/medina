@@ -51,11 +51,19 @@ dependent on the number of species and reaction constants in the MECCA mechanism
 The number of GPUs per node and VRAM memory available in each GPU dictates the
 total number of CPU cores that can run simultaneously.
 
+### NVIDIA Multi-Process Services
 To run multiple CPU processes per GPU, the Multi-process service (MPS) provided 
 by NVIDIA can be used.
 
-Warning: In K80 and older generation accelerators, if memory is not enough
-the CUDA runtime will fail silently - without any error. 
+*Warning:* Memory Protection
+
+Volta MPS client processes have fully isolated GPU address spaces. Pre-Volta MPS client 
+processes allocate memory from different partitions of the same GPU virtual address space. As a result:
+
+* An out-of-range write in a CUDA Kernel can modify the CUDA-accessible memory state of
+another process, and will not trigger an error.
+* An out-of-range read in a CUDA Kernel can access CUDA-accessible memory modified by 
+another process, and will not trigger an error, leading to undefined behavior.
 
 ## 5. Unit testing
 
