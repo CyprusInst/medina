@@ -52,7 +52,7 @@ dependent on the number of species and reaction constants in the MECCA mechanism
 The number of GPUs per node and VRAM memory available in each GPU dictates the
 total number of CPU cores that can run simultaneously.
 
-### NVIDIA Multi-Process Services
+### NVIDIA Multi-Process Service
 To run multiple CPU processes per GPU, the Multi-process service (MPS) provided 
 by NVIDIA can be used.
 
