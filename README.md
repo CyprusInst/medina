@@ -55,7 +55,7 @@ total number of CPU cores that can run simultaneously.
 To run multiple CPU processes per GPU, the Multi-process service (MPS) provided 
 by NVIDIA can be used.
 
-*Warning:* Memory Protection
+***Warning: Memory Protection***
 
 Volta MPS client processes have fully isolated GPU address spaces. Pre-Volta MPS client 
 processes allocate memory from different partitions of the same GPU virtual address space. As a result:
