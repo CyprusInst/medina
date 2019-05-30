@@ -44,7 +44,8 @@ the preprocessor will stop with an error message.
 ## 4. Running EMAC with GPU MECCA and improving performance:
 
 During testing it was found that the runtime parameter `NPROMA` should be set 
-to a value not greater than 128 for optimal memory allocation and performance on the GPU.
+to a value not greater than 128 (preferably 64) for optimal memory allocation 
+and performance on the GPU.
 
 Each CPU process that offloads to GPU requires a chunk of the GPU VRAM memory,
 dependent on the number of species and reaction constants in the MECCA mechanism. 
