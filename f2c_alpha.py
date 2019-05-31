@@ -1787,7 +1787,7 @@ add_cuda_compilation(file_specific,file_makefile,arch)
 
 print "\n##################################################################\n" 
 print "Don't forget to add the '-lcudart' in the linking options during configuration"
-print "For example, you it can be added to the SPEC_NETCDF_LIB variable:"
+print "For example, it can be added to the SPEC_NETCDF_LIB variable:"
 print "SPEC_NETCDF_LIB = -L$EBROOTNETCDFMINFORTRAN/lib -lnetcdff   -lcudart  -lstdc++"
 
 
