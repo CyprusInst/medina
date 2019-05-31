@@ -1476,7 +1476,7 @@ Select Rosenbrock solver:
 
             1. All    ( Selects based on the runtime option  )
             2. Ros2   ( 2-stage L-stable - FASTEST           )
-            3. Ros3   ( 3-stage L-stable - RECOMMEND         )
+            3. Ros3   ( 3-stage L-stable - RECOMMENDED       )
             4. Ros4   ( 4-stage L-stable                     )
             5. Rodas3 ( 4-stage stiffly accurate             )
             6. Rodas4 ( 6-stage stiffly accurate - SLOWEST   )
@@ -1525,7 +1525,7 @@ ros,arch = print_menu_make_selection(ros,gpu)
 ###############################################
 # Print generic information - header
 print "\n+===================================================================+ "
-print "| KPP Fortranl to CUDA praser - Copyright 2016 The Cyprus Institute |"
+print "| KPP Fortran to CUDA praser - Copyright 2016 The Cyprus Institute  |"
 print "+===================================================================+ \n"
 
 print_warning()
@@ -1546,9 +1546,7 @@ if ( os.path.isfile("../smcl/messy_mecca_kpp.f90") == False             or
     exit(-1)
 
 
-
 multifile, vectorize, indirect, inject_rconst = get_transformation_flags()
-
 
 
 ###############################################
@@ -1788,8 +1786,8 @@ add_cuda_compilation(file_specific,file_makefile,arch)
 ###############################################
 
 print "\n##################################################################\n" 
-print "Don't forget to add the '-lcudart' in your linking options in configuration"
-print "For example you can add it to SPEC_NETCDF_LIB variable:"
+print "Don't forget to add the '-lcudart' in the linking options during configuration"
+print "For example, you it can be added to the SPEC_NETCDF_LIB variable:"
 print "SPEC_NETCDF_LIB = -L$EBROOTNETCDFMINFORTRAN/lib -lnetcdff   -lcudart  -lstdc++"
 
 
