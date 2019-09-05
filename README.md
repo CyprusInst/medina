@@ -21,7 +21,9 @@ The files have to be available in the messy/util directory.
 No additional changes are required. 
 
 To install the latest version from github, go to the messy/util directory
-and run the command `git clone https://github.com/CyprusInst/medina.git`
+and run the command:
+
+`git clone https://github.com/CyprusInst/medina.git`
 
 **Note:** MESSy has to be linked with the `-lcudart` and `-lstdc++` flags. 
 For example, you can append it to the `SPEC_NETCDF_LIB` variable 
@@ -58,7 +60,7 @@ total number of CPU cores that can run simultaneously.
 To run multiple CPU processes per GPU, the Multi-process service (MPS) provided 
 by NVIDIA can be used.
 
-***Warning: Memory Protection***
+***Warning: Memory Protection*** 
 
 Volta MPS client processes have fully isolated GPU address spaces. Pre-Volta MPS client 
 processes allocate memory from different partitions of the same GPU virtual address space. As a result:
