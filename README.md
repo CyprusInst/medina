@@ -17,11 +17,13 @@ Hardware: CUDA compatible GPU (Fermi, Kepler, Pascal, Volta, or later).
 
 There are two files required to enable using the GPUs: 
 `f2c_alpha.py`  and `kpp_integrate_cuda_prototype.cu`. 
-
 The files have to be available in the messy/util directory. 
 No additional changes are required. 
 
-Note: MESSy has to be linked with the `-lcudart` and `-lstdc++` flags. 
+To install the latest version from github, go to the messy/util directory
+and run the command `git clone https://github.com/CyprusInst/medina.git`
+
+**Note:** MESSy has to be linked with the `-lcudart` and `-lstdc++` flags. 
 For example, you can append it to the `SPEC_NETCDF_LIB` variable 
 in the configuration file (under `config/mh-XXXX`).
 
