@@ -15,9 +15,9 @@ Hardware: CUDA compatible GPU (Fermi, Kepler, Pascal, Volta, or later).
 
 ## 2. Installation:
 
-There are two files required to enable using the GPUs: 
-`f2c_alpha.py`  and `kpp_integrate_cuda_prototype.cu`. 
-The files have to be available in the messy/util directory. 
+To enable using the GPUs the file: 
+`f2c_alpha.py`  and folder `source` 
+have to be available in the messy/util directory. 
 No additional changes are required. 
 
 To install the latest version from github, go to the messy/util directory
@@ -26,7 +26,7 @@ and run the command:
 `git clone https://github.com/CyprusInst/medina.git`
 
 **Note:** MESSy has to be linked with the `-lcudart` and `-lstdc++` flags. 
-For example, you can append it to the `SPEC_NETCDF_LIB` variable 
+For example, you can append the flags to the `SPEC_NETCDF_LIB` variable 
 in the configuration file (under `config/mh-XXXX`).
 
 ## 3. Running the MECCA Fortran to CUDA source-to-source pre-processor:
@@ -58,7 +58,7 @@ total number of CPU cores that can run simultaneously.
 
 ### NVIDIA Multi-Process Service
 To run multiple CPU processes per GPU, the Multi-process service (MPS) provided 
-by NVIDIA can be used.
+by NVIDIA should be used.
 
 ***Warning: Memory Protection*** 
 
