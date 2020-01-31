@@ -1445,6 +1445,8 @@ def select_architecture(ans):
         arch = "--gpu-architecture=compute_50"
     elif ans=="4":
         arch = "--gpu-architecture=compute_60"
+    elif ans=="5":
+        arch = "--gpu-architecture=compute_70"
     else:
         arch = "--gpu-architecture=compute_20"
 
@@ -1455,12 +1457,13 @@ def print_menu_make_selection(ros,gpu):
     if gpu is None:
         print ("""
 
-    Select CUDA architecture: 
+    Select CUDA architecture (1-5): 
 
-                1. CUDA 2.0 ( Best compatibility, FERMI architecture )
-                2. CUDA 3.5 ( KEPLER or later                        )
-                3. CUDA 5.2 ( MAXWELL or later                       )
-                4. CUDA 6.0 ( PASCAL or later                        )
+                1. CUDA 2.0 ( FERMI GPU architecture   )
+                2. CUDA 3.5 ( KEPLER GPU architecture  )
+                3. CUDA 5.2 ( MAXWELL GPU architecture )
+                4. CUDA 6.0 ( PASCAL GPU architecture  )
+                5. CUDA 7.0 ( VOLTA GPU architecture   )
 
                 """)
 
@@ -1472,7 +1475,7 @@ def print_menu_make_selection(ros,gpu):
     if ros is None:
         print ("""
 
-Select Rosenbrock solver: 
+Select Rosenbrock solver (1-6): 
 
             1. All    ( Selects based on the runtime option  )
             2. Ros2   ( 2-stage L-stable - FASTEST           )
@@ -1743,7 +1746,7 @@ source = fix_indices(source,[("A","A"),("RCT","rconst"),("F","fix"),("V","var"),
 source_cuda["fun"] = generate_fun(source,NREACT)
 
 ###############################################
-print "\n==> Step 8: Parsing preparing diagonal."
+print "\n==> Step 8: Parsing and preparing diagonal."
 
 
 source_cuda["ros_preparematrix"] = generate_prepareMatrix(lu_diag)
@@ -1772,13 +1775,13 @@ gen_kpp_integrate_cuda(file_prototype, source_cuda, inject_rconst)
 
 ###############################################
 
-print "\n==> Step 12: Generating meessy_mecca_kpp replacement."
+print "\n==> Step 12: Generating messy_mecca_kpp replacement."
 generate_c2f_interface(file_messy_mecca_kpp)
 
 ###############################################
 
 
-print "\n==> Step 13: Modifing specific.mk and specific.mk"
+print "\n==> Step 13: Modifying specific.mk and Makefile"
 
 add_cuda_compilation(file_specific,file_makefile,arch)
 
