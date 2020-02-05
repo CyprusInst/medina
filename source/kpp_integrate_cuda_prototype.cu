@@ -97,12 +97,6 @@
 
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 
-#define _LDG(x)  (x)
-
-// The ros kernel only needs to read the data, 
-// so store them in the read only cache if possible
-#define rconst(i,j) _LDG( rconst[(j)*(VL_GLO)+(i)] )
-
 static inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
 {
    if (code != cudaSuccess) 
