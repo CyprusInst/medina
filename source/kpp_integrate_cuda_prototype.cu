@@ -97,13 +97,7 @@
 
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 
-
-
-#if __CUDA_ARCH__ >= 350
-#define _LDG(x)  (__ldg( &(x) ) )
-#else
 #define _LDG(x)  (x)
-#endif
 
 // The ros kernel only needs to read the data, 
 // so store them in the read only cache if possible
