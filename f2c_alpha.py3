@@ -1,8 +1,9 @@
+#!/usr/bin/env python3
 #########################################################################################################
-# 
+#
 # MECCA - KPP Fortran to CUDA praser
 #
-# Copyright 2016 The Cyprus Institute 
+# Copyright 2016-2020 The Cyprus Institute
 #
 # Developers: Michail Alvanos - m.alvanos@cyi.ac.cy
 #             Theodoros Christoudias - christoudias@cyi.ac.cy
@@ -14,7 +15,7 @@
 import os
 import shutil
 import re
-import subprocess, string 
+import subprocess, string
 import argparse
 
 
@@ -29,7 +30,7 @@ def remove_comments(source):
         line = lines.pop()
         if "!" in line:
             if line[0] == "!":
-                continue 
+                continue
             line = line[:line.find("!")-1]+"\n"
             line = line.strip()
         if (line != ''):
@@ -60,17 +61,17 @@ def strip_and_unroll_lines(source):
                         break
         line = line + "\n"
         out.append(line)
-    return out        
+    return out
 
 def find_subroutines(file_in, subroutine_names):
     subroutines = {}
     for subroutine in subroutine_names:
         subroutine = subroutine.lower()
-        file_in.seek(0)    
+        file_in.seek(0)
         lines = file_in.readlines()
         lines.reverse()
         source = []
-        while True:  
+        while True:
             if lines == []:
                 break
             line = lines.pop().lower()
@@ -173,7 +174,7 @@ def fix_power_op(source):
                                 break
                             pos = pos -1
                         base = left[pos:-3]
-                        left = left[:pos].strip()    
+                        left = left[:pos].strip()
                     elif left[-4] in var_name:  # if it's 33.33E-33_dp or a_333_dp
                         pos=-3
                         scientif = False
@@ -196,7 +197,7 @@ def fix_power_op(source):
                                     break
                             pos = pos - 1
                         base = left[pos:-3]+((not isnumber) and (not scientif))*left[-3:]
-                        left = left[:pos].strip() 
+                        left = left[:pos].strip()
                 else: # if it's 3. , 3.3E-33 or a_3
                     if left[-1] == ".": # if it's 33.
                         pos=-1
@@ -207,7 +208,7 @@ def fix_power_op(source):
                                 break
                             pos = pos - 1
                         base = left[pos:]
-                        left = left[:pos].strip()    
+                        left = left[:pos].strip()
                     elif left[-1] in var_name:   # if it's 33.33E-33 or a_3
                         pos=0
                         scientif = False
@@ -231,7 +232,7 @@ def fix_power_op(source):
                             pos = pos - 1
                         #base = left[pos:]+((not isnumber) and (not scientif))*left[:]
                         base = left[pos:]
-                        left = left[:pos].strip() 
+                        left = left[:pos].strip()
                     else:
                         print("OOPS! Missed something...")
                 line = left+" pow("+base+", "+ exponent+") "+right+"\n"
@@ -246,7 +247,7 @@ def strip_lines(source):
 
 def split_beta(source,key):
     the_line = 0
-    for line_num in range(len(source)):  
+    for line_num in range(len(source)):
         if source[line_num].strip()[0:len(key)] == key:
             the_line = line_num
             break
@@ -256,7 +257,7 @@ def split_beta(source,key):
             source[line_num] = ""
         main_body.append(source[line_num])
     return main_body
-  
+
 def fix_indices(source,keys):
     lines = source[:]
     lines.reverse()
@@ -284,7 +285,7 @@ def fix_indices(source,keys):
 
                         print("Value error : "+ str(line[index+len(var[0])+1:line.find(")",index)]))
                         raise ValueError
-                        
+
                     index = index + len(var[1])+1
         processed.append(line.strip())
     return processed
@@ -293,8 +294,8 @@ def fix_indices(source,keys):
 pass
 #########################################################################################################
 #########################################################################################################
-    
-    
+
+
 def split_rconst(source):
     lines = source[:]
     lines.reverse()
@@ -309,7 +310,7 @@ def split_rconst(source):
         elif ("=" in line) and (line.find("=") > 2):
             rconst_decls.append(line)
     return rconst_ops,rconst_decls
-    
+
 def rconst_preprocessor_1(source):
     lines = source[:]
     lines.reverse()
@@ -341,7 +342,7 @@ def rconst_preprocessor_1(source):
         file_temp.write(line)
     file_temp.close()
     file_temp = open("file_temp2.c","w")
-    p1 = subprocess.Popen(["gcc","-E","file_temp.c"], stdout=subprocess.PIPE) 
+    p1 = subprocess.Popen(["gcc","-E","file_temp.c"], stdout=subprocess.PIPE)
     p2 = subprocess.Popen(["grep","-v","\#"], stdin=p1.stdout, stdout=file_temp)
     p2.wait()
     file_temp.close()
@@ -351,7 +352,7 @@ def rconst_preprocessor_1(source):
     file_temp.close()
     subprocess.call(["rm","-f","file_temp.c","file_temp2.c"])
     return preprocessed
-        
+
 def get_rconst_locals(source):
     rconst_locals=[]
     for line in source:
@@ -426,8 +427,8 @@ def generate_update_rconst(rconst_ops,rconst_decls,locals,rcint):
 pass
 #########################################################################################################
 #########################################################################################################
-        
-def generate_kppsolve(source): 
+
+def generate_kppsolve(source):
     kppsolve=[]
     kppsolve.append("__device__ void kppSolve(const double * __restrict__ Ghimj, double * __restrict__ K, \n\
                          const int istage, const int ros_S )")
@@ -444,11 +445,11 @@ def generate_kppsolve(source):
             kppsolve.append("        "+line+";\n")
     kppsolve.append("}\n")
     return kppsolve
-        
+
 pass
 #########################################################################################################
 #########################################################################################################
-          
+
 def generate_kppDecomp(source,NSPEC,lu_diag,lu_crow,lu_icol):
     kppDecomp = []
     kppDecomp.append("__device__ void kppDecomp(double *Ghimj, int VL_GLO)\n")
@@ -469,13 +470,13 @@ def generate_kppDecomp(source,NSPEC,lu_diag,lu_crow,lu_icol):
             kppDecomp.append("        "+line+";\n")
     kppDecomp.append("}\n")
     return kppDecomp
-    
+
 pass
 
 
 #########################################################################################################
 #########################################################################################################
-          
+
 def generate_kppDecompIndirect(source,NSPEC,lu_diag,lu_crow,lu_icol):
     kppDecomp = []
 
@@ -531,16 +532,16 @@ def generate_kppDecompIndirect(source,NSPEC,lu_diag,lu_crow,lu_icol):
     kppDecomp.append(loop)
     kppDecomp.append("}\n")
     return kppDecomp
-    
+
 pass
 
 #########################################################################################################
 #########################################################################################################
-        
+
 def generate_jac_sp(source,NBSIZE):
     jac_sp = []
     jac_sp.append("__device__ void Jac_sp(const double * __restrict__ var, const double * __restrict__ fix,\n\
-                 const double * __restrict__ rconst, double * __restrict__ jcb, int &Njac, const int VL_GLO)\n") 
+                 const double * __restrict__ rconst, double * __restrict__ jcb, int &Njac, const int VL_GLO)\n")
     jac_sp.append("{\n")
     jac_sp.append("    int index = blockIdx.x*blockDim.x+threadIdx.x;\n")
 
@@ -566,7 +567,7 @@ def generate_jac_sp(source,NBSIZE):
             jac_sp.append("        "+line+";\n")
     jac_sp.append("    }\n")
     return jac_sp
-    
+
 pass
 #########################################################################################################
 #########################################################################################################
@@ -596,7 +597,7 @@ def generate_fun(source,NREACT):
     fun.append("    }\n")
     fun.append("}\n")
     return fun
-    
+
 pass
 #########################################################################################################
 #########################################################################################################
@@ -604,13 +605,13 @@ pass
 
 
 def find_LU_DIAG(file_in, NVAR):
-    file_in.seek(0)    
+    file_in.seek(0)
     source = file_in.readlines()
     the_line = 0
     glu_diag = []
     long_tables = False
 
-    for line_num in range(len(source)):  
+    for line_num in range(len(source)):
         if "lu_diag_0" in source[line_num].lower():
             print("Detected long tables!") 
             long_tables = True
@@ -618,7 +619,7 @@ def find_LU_DIAG(file_in, NVAR):
             break
 
 
-    for line_num in range(len(source)):  
+    for line_num in range(len(source)):
         if (long_tables == True):
             if "lu_diag " in source[line_num].lower():
                 end_line = line_num
@@ -669,13 +670,13 @@ def find_LU_DIAG(file_in, NVAR):
 
 
 def find_LU_CROW(file_in, NVAR):
-    file_in.seek(0)    
+    file_in.seek(0)
     source = file_in.readlines()
     the_line = 0
     glu_diag = []
     long_tables = False
 
-    for line_num in range(len(source)):  
+    for line_num in range(len(source)):
         if "lu_crow_0" in source[line_num].lower():
             print("Detected long tables!") 
             long_tables = True
@@ -683,7 +684,7 @@ def find_LU_CROW(file_in, NVAR):
             break
 
 
-    for line_num in range(len(source)):  
+    for line_num in range(len(source)):
         if (long_tables == True):
             if "lu_crow " in source[line_num].lower():
                 end_line = line_num
@@ -731,21 +732,21 @@ def find_LU_CROW(file_in, NVAR):
     return lu_diag
 
 def find_LU_ICOL(file_in, NVAR):
-    file_in.seek(0)    
+    file_in.seek(0)
     source = file_in.readlines()
     the_line = 0
     glu_diag = []
     long_tables = False
 
-    for line_num in range(len(source)):  
+    for line_num in range(len(source)):
         if "lu_icol_0" in source[line_num].lower():
-            print("Detected long tables!") 
+            print("Detected long tables!")
             long_tables = True
             the_line = line_num
             break
 
 
-    for line_num in range(len(source)):  
+    for line_num in range(len(source)):
         if (long_tables == True):
             if "lu_icol " in source[line_num].lower():
                 end_line = line_num
@@ -793,7 +794,7 @@ def find_LU_ICOL(file_in, NVAR):
 
 
 #########################################################################################################
-        
+
 def generate_prepareMatrix(lu_diag):
     prepareMatrix = []
     prepareMatrix.append("__device__ void ros_PrepareMatrix(double &H, int direction, double gam, double *jac0, double *Ghimj,  int &Nsng, int &Ndec, int VL_GLO)\n")
@@ -810,16 +811,16 @@ def generate_prepareMatrix(lu_diag):
     prepareMatrix.append("        ros_Decomp(Ghimj, Ndec, VL_GLO);\n")
     prepareMatrix.append("}\n")
     return prepareMatrix
- 
- 
+
+
 pass
 
 #########################################################################################################
-        
+
 def generate_special_ros(ros,inject_rconst):
 
-    
-    
+
+
     if ( ros == '2'):
         file_ros = open("./source/ros2.cu","r")
     elif (ros == '3'):
@@ -846,15 +847,15 @@ def generate_special_ros(ros,inject_rconst):
 
 
 
-    return rosfunc 
- 
- 
+    return rosfunc
+
+
 pass
 #########################################################################################################
 
-        
+
 def generate_special_ros_caller(ros):
-    
+
     roscall = []
 
     default_call = '      Rosenbrock<<<dimGrid,dimBlock>>>(d_conc, Tstart, Tend, d_rstatus, d_istatus,\n\
@@ -945,22 +946,22 @@ def generate_special_ros_caller(ros):
                     break;\n\
     }\n'
     else:
-        return default_call 
+        return default_call
 
 
 
-    return rosscall 
- 
- 
+    return rosscall
+
+
 pass
 
 
 
 #########################################################################################################
 #########################################################################################################
-        
+
 def generate_define_indices_one_line(file_in,prefix):
-    file_in.seek(0)    
+    file_in.seek(0)
     source = file_in.readlines()
     source = remove_comments(source)
     source = strip_and_unroll_lines(source)
@@ -981,9 +982,9 @@ def generate_define_indices_one_line(file_in,prefix):
     return the_line
 
 
-    
+
 def generate_define_indices_many_lines(file_in,prefix):
-    file_in.seek(0)    
+    file_in.seek(0)
     source = file_in.readlines()
     source = remove_comments(source)
     source = strip_and_unroll_lines(source)
@@ -1006,7 +1007,7 @@ def generate_define_indices_many_lines(file_in,prefix):
     return ind_s
 
 def generate_define_vars(file_in,var_names):
-    file_in.seek(0)    
+    file_in.seek(0)
     source = file_in.readlines()
     source = remove_comments(source)
     source = strip_and_unroll_lines(source)
@@ -1031,13 +1032,13 @@ def generate_define_vars(file_in,var_names):
     if var_names != []:
         print("Warning: variables "+str(var_names)+" were not found")
     return out
-  
+
 #
 # Takes prefix of variables as input and the file
 # Returns definitions using index
 #
 def generate_definitions_global(file_in,var_prefix):
-    file_in.seek(0)    
+    file_in.seek(0)
     source = file_in.readlines()
     source = remove_comments(source)
     source = strip_and_unroll_lines(source)
@@ -1059,13 +1060,13 @@ def generate_definitions_global(file_in,var_prefix):
             if ( len(allvars)  > 0):
                 for definition in allvars:
                     out.append("#define "+definition[0]+"  ("+str(definition[3])+")\n")
-                    
+
     return out
 
 pass
 #########################################################################################################
 #########################################################################################################
- 
+
 def gen_kpp_integrate_cuda(file_prototype, source_cuda, inject_rconst):
     file_prototype.seek(0)
     lines_prototype = file_prototype.readlines()
@@ -1090,9 +1091,9 @@ def gen_kpp_integrate_cuda(file_prototype, source_cuda, inject_rconst):
 
             file_out.write(line)
     file_out.close()
-            
-    
-    
+
+
+
 
 pass
 #########################################################################################################
@@ -1162,13 +1163,13 @@ def remove_precision_qualifiers(line):
                         number = not ((not isnumber) and (not scientif))
                     line = left + (not number)*right[:3] + right[3:]
     return line
-                    
+
 pass
 #########################################################################################################
 #########################################################################################################
 
 def generate_c2f_interface(file_in):
-    file_in.seek(0)    
+    file_in.seek(0)
     source = file_in.readlines()
     start = -1
     stop = -1
@@ -1316,7 +1317,7 @@ def generate_c2f_interface(file_in):
   data_loaded = .false.                                             \n\
                                                                     \n\
   return                                                            \n\
-END SUBROUTINE kpp_integrate\n" 
+END SUBROUTINE kpp_integrate\n"
     file_out.write(out)
 
 
@@ -1331,7 +1332,7 @@ pass
 
 def add_cuda_compilation(file_specific,file_makefile,arch):
 
-    file_makefile.seek(0)    
+    file_makefile.seek(0)
     out = "\nmessy_mecca_kpp_acc.o: messy_mecca_kpp_acc.cu specific.mk \n\
 \tnvcc  -v  --ptxas-options=-v  " + arch +"  --ftz=false --prec-div=true --prec-sqrt=true --fmad=false    -O3  -g   -c  $<"
     file_specific.write(out)
@@ -1346,9 +1347,9 @@ def add_cuda_compilation(file_specific,file_makefile,arch):
         if line.startswith('depend $(MAKEFILE_INC): $(SRCS)'):
             line = line.rstrip() + ' $(ACC_SRCS)\n'
         if line.startswith('OBJS  := $(SRCS:.f90=.o)'):
-            line ='OBJSCUDA  := $(SRCS_ACC:.cu=.o)\n' +  line 
+            line ='OBJSCUDA  := $(SRCS_ACC:.cu=.o)\n' +  line
         if line.startswith('SRCS  := $(filter-out F%.f90, $(SRCS0)'):
-            line ='SRCS_ACC  := $(wildcard *.cu) \n' +  line 
+            line ='SRCS_ACC  := $(wildcard *.cu) \n' +  line
 
         if line.startswith('.SUFFIXES: $(SUFFIXES) .f90 .md5'):
             line ='.SUFFIXES: $(SUFFIXES) .f90 .md5 .cu\n'
@@ -1426,9 +1427,9 @@ pass
 #########################################################################################################
 
 def print_warning():
-    print('\033[1m' + "\n####################################################################################################") 
+    print('\033[1m' + "\n####################################################################################################")
     print("## WARNING!! BETA VERSION ! PLEASE REPORT TO PACKAGE MAINTAINERS ANY BUGS OR UNEXPECTED BEHAVIOUR.")
-    print("####################################################################################################\n") 
+    print("####################################################################################################\n")
     print('\033[0m')
 pass
 
@@ -1539,9 +1540,9 @@ print_warning()
 if ( os.path.isfile("../smcl/messy_mecca_kpp.f90") == False             or
      os.path.isfile("../smcl/messy_cmn_photol_mem.f90") == False        or
      os.path.isfile("../smcl/messy_main_constants_mem.f90") == False    or
-     os.path.isfile("./source/kpp_integrate_cuda_prototype.cu") == False or 
-     os.path.isfile("../smcl/specific.mk") == False or 
-     os.path.isfile("../smcl/Makefile.m") == False     
+     os.path.isfile("./source/kpp_integrate_cuda_prototype.cu") == False or
+     os.path.isfile("../smcl/specific.mk") == False or
+     os.path.isfile("../smcl/Makefile.m") == False
      ):
     print("Can't file one or more files. \n")
     print("--> Run the script at ./messy/util directory of messy. \n")
@@ -1606,7 +1607,7 @@ else:
     subroutines = find_subroutines(file_messy_mecca_kpp, subroutine_names)
 
 
-            
+
 
 ###############################################
 
@@ -1637,16 +1638,16 @@ else:
 
 
 
-# read the values 
+# read the values
 NSPEC = int(source_cuda["defines_vars_2"][0].split(" ")[2].strip())
 NVAR = int(source_cuda["defines_vars_2"][1].split(" ")[2].strip())
 NFIX = int(source_cuda["defines_vars_2"][2].split(" ")[2].strip())
 NREACT = int(source_cuda["defines_vars_2"][3].split(" ")[2].strip())
 LU_NONZERO = int(source_cuda["defines_vars_2"][4].split(" ")[2].strip())
-NBSIZE = int(source_cuda["defines_vars_2"][5].split(" ")[2].strip()) 
+NBSIZE = int(source_cuda["defines_vars_2"][5].split(" ")[2].strip())
 
 
-# read the tables 
+# read the tables
 if (multifile == True):
     file_messy_jacobian = open("messy_mecca_kpp_jacobiansp.f90","r")
     lu_diag = find_LU_DIAG(file_messy_jacobian, NVAR)
@@ -1795,5 +1796,4 @@ print("SPEC_NETCDF_LIB = -L$EBROOTNETCDFMINFORTRAN/lib -lnetcdff   -lcudart  -ls
 
 
 print_warning()
-
 
