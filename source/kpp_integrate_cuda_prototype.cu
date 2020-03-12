@@ -68,7 +68,7 @@
 
 #define ROUND128(X)  (X + (128 - 1)) & ~(128 - 1)
 
-#define rconst(i,j)  rconst[(j)*(VL_GLO)+(i)]
+#define rconst(i,j)  rconst[(j)]
 
 
 /* Temporary arrays allocated in stack */
@@ -140,7 +140,7 @@ __device__ inline void prefetch_ll2(const void *p) {
 
 __device__ void  update_rconst(const double * __restrict__ var,
 			       const double * __restrict__ khet_st, const double * __restrict__ khet_tr,
-			       const double * __restrict__ jx, 
+			       const double * __restrict__ jx, double * __restrict__ rconst,
 			       const int VL_GLO);
 
 /* This runs on CPU */
@@ -591,7 +591,7 @@ __device__ __constant__  ros_t ros[5] = {
 
 
 
-__device__ double rconst_local[MAX_VL_GLO*NREACT];
+//__device__ double rconst_local[MAX_VL_GLO*NREACT];
 
 /* Initialize rconst local  */
 
@@ -694,7 +694,7 @@ void Rosenbrock(double * __restrict__ conc, const double Tstart, const double Te
 
 
     /* Allocated in Global mem */
-    double *rconst = rconst_local;
+    double rconst_stack[NREACT];
 
     /* Allocated in stack */
     double *Ghimj  = Ghimj_stack;
@@ -706,6 +706,7 @@ void Rosenbrock(double * __restrict__ conc, const double Tstart, const double Te
     double *varErr = varErr_stack;
     double *var    = var_stack;
     double *fix    = fix_stack;  
+    double *rconst = rconst_stack;
 
     if (index < VL_GLO)
     {
@@ -752,7 +753,7 @@ void Rosenbrock(double * __restrict__ conc, const double Tstart, const double Te
             fix(index,i) = conc(index,NVAR+i);
 
 
-        update_rconst(var, khet_st, khet_tr, jx, VL_GLO); 
+        update_rconst(var, khet_st, khet_tr, jx, rconst, VL_GLO); 
 
         ros_Integrator(var, fix, Tstart, Tend, Texit,
                 //  Rosenbrock method coefficients

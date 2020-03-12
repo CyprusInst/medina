@@ -395,12 +395,11 @@ def generate_update_rconst(rconst_ops,rconst_decls,locals,rcint):
     update_rconst.append( \
     "__device__ void  update_rconst(const double * __restrict__ var, \n \
 			       const double * __restrict__ khet_st, const double * __restrict__ khet_tr,\n \
-			       const double * __restrict__ jx, \n\
+			       const double * __restrict__ jx, double * __restrict__ rconst, \n\
 			       const int VL_GLO)\n")
     update_rconst.append("{\n")
     update_rconst.append("    int index = blockIdx.x*blockDim.x+threadIdx.x;\n\n")
     update_rconst.append("    /* Set local buffer */\n")
-    update_rconst.append("    double *rconst = rconst_local;\n")
     update_rconst.append("\n")
     update_rconst.append("    {\n")
     update_rconst.append("        const double temp_loc  = temp_gpu[index];\n")
