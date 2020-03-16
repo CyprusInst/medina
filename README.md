@@ -60,16 +60,6 @@ total number of CPU cores that can run simultaneously.
 To run multiple CPU processes per GPU, the Multi-process service (MPS) provided 
 by NVIDIA should be used.
 
-***Warning: Memory Protection*** 
-
-Volta MPS client processes have fully isolated GPU address spaces. Pre-Volta MPS client 
-processes allocate memory from different partitions of the same GPU virtual address space. As a result:
-
-* An out-of-range write in a CUDA Kernel can modify the CUDA-accessible memory state of
-another process, and will not trigger an error.
-* An out-of-range read in a CUDA Kernel can access CUDA-accessible memory modified by 
-another process, and will not trigger an error, leading to undefined behavior.
-
 ## 5. Unit testing
 
 A self-contained unit test is included in the ditribution. The test includes 
