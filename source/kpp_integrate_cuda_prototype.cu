@@ -97,18 +97,6 @@
 
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 
-
-
-#if __CUDA_ARCH__ >= 350
-#define _LDG(x)  (__ldg( &(x) ) )
-#else
-#define _LDG(x)  (x)
-#endif
-
-// The ros kernel only needs to read the data, 
-// so store them in the read only cache if possible
-#define rconst(i,j) _LDG( rconst[(j)*(VL_GLO)+(i)] )
-
 static inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
 {
    if (code != cudaSuccess) 
@@ -197,8 +185,8 @@ __device__  static double alpha_AN(const int n, const int ro2type, const double 
   */
     double m = 1.;
     Y0_298K     = alpha*exp(beta*n);
-    Y0_298K_tp  = Y0_298K *cair *pow((temp/298),(- m0));
-    Yinf_298K_t = Yinf_298K * pow((temp/298),(- minf));
+    Y0_298K_tp  = Y0_298K *cair *pow((temp/298.),(- m0));
+    Yinf_298K_t = Yinf_298K * pow((temp/298.),(- minf));
     zeta        = 1/(1+ pow(log10(Y0_298K_tp/Yinf_298K_t),2));
     k_ratio     = (Y0_298K_tp/(1+ Y0_298K_tp/Yinf_298K_t))*pow(F,zeta);
     alpha_a    = k_ratio/(1+ k_ratio) *m;
@@ -216,12 +204,15 @@ if (abic == 1) { abf = 0.24; }// derived from the ratio of AN- yield for toluene
                               // 200 torr, and this SAR for linear alkyl RO2 with 9 heavy atoms, 23.3%
 
     Y0_298K     = alpha*exp(beta*n);
-    Y0_298K_tp  = Y0_298K *cair *pow((temp/298),(- m0));
-    Yinf_298K_t = Yinf_298K * pow((temp/298),(- minf));
+    Y0_298K_tp  = Y0_298K *cair *pow((temp/298.),(- m0));
+    Yinf_298K_t = Yinf_298K * pow((temp/298.),(- minf));
     zeta        = 1/(1+ pow(log10(Y0_298K_tp/Yinf_298K_t),2));
     k_ratio     = (Y0_298K_tp/(1+ Y0_298K_tp/Yinf_298K_t))*pow(F,zeta);
     alpha_a    = k_ratio/(1+ k_ratio) *m*bcf*gcf*abf;
     return alpha_a;
+}
+__device__  static double k_RO2_HO2(const double temp, const int nC){
+    return 2.91e-13*exp(1300./temp)*(1.-exp(-0.245*nC)); // ref1630
 }
 __device__ double ros_ErrorNorm(double * __restrict__ var, double * __restrict__ varNew, double * __restrict__ varErr, 
                                 const double * __restrict__ absTol, const double * __restrict__ relTol,
@@ -698,7 +689,7 @@ void Rosenbrock(double * __restrict__ conc, const double Tstart, const double Te
     double Fcn0_stack[NVAR];
     double jac0_stack[LU_NONZERO];
     double dFdT_stack[NVAR];
-    double Ghimj_stack[LU_NONZERO*3];
+    double Ghimj_stack[LU_NONZERO];
     double K_stack[6*NVAR];
 
 

@@ -197,7 +197,7 @@ void Rosenbrock_ros2(double * __restrict__ conc, const double Tstart, const doub
     double Fcn0_stack[NVAR];
     double jac0_stack[LU_NONZERO];
     double dFdT_stack[NVAR];
-    double Ghimj_stack[LU_NONZERO*3];
+    double Ghimj_stack[LU_NONZERO];
     double K_stack[6*NVAR];
 
 

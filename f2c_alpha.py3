@@ -1,5 +1,4 @@
-#!/usr/bin/env python
-
+#!/usr/bin/env python3
 #########################################################################################################
 #
 # MECCA - KPP Fortran to CUDA praser
@@ -21,7 +20,7 @@ import argparse
 
 
 def remove_comments(source):
-    print "Removing comments..."
+    print("Removing comments...")
     lines = source[:]
     lines.reverse()
     out = []
@@ -171,7 +170,7 @@ def fix_power_op(source):
                         for i in reversed(left[:-4]):
                             if i not in string.digits:
                                 if pos == -4:
-                                    print "ERROR 1 in \"parcer\" \n"
+                                    print("ERROR 1 in \"parcer\" \n")
                                 break
                             pos = pos -1
                         base = left[pos:-3]
@@ -205,7 +204,7 @@ def fix_power_op(source):
                         for i in reversed(left[:-1]):
                             if i not in string.digits:
                                 if pos == -1:
-                                    print "ERROR 2 in \"parcer\" \n"
+                                    print("ERROR 2 in \"parcer\" \n")
                                 break
                             pos = pos - 1
                         base = left[pos:]
@@ -235,7 +234,7 @@ def fix_power_op(source):
                         base = left[pos:]
                         left = left[:pos].strip()
                     else:
-                        print "OOPS! Missed something..."
+                        print("OOPS! Missed something...")
                 line = left+" pow("+base+", "+ exponent+") "+right+"\n"
         fixed.append(line)
     return fixed
@@ -284,7 +283,7 @@ def fix_indices(source,keys):
                         line = line[:index]+var[1]+"(index,"+extra+str(int(line[index+len(var[0])+1:line.find(")",index)])-1)+line[line.find(")",index):].replace(")=",") =")
                     else:
 
-                        print "Value error : "+ str(line[index+len(var[0])+1:line.find(")",index)])
+                        print("Value error : "+ str(line[index+len(var[0])+1:line.find(")",index)]))
                         raise ValueError
 
                     index = index + len(var[1])+1
@@ -614,7 +613,7 @@ def find_LU_DIAG(file_in, NVAR):
 
     for line_num in range(len(source)):
         if "lu_diag_0" in source[line_num].lower():
-            print "Detected long tables!"
+            print("Detected long tables!") 
             long_tables = True
             the_line = line_num
             break
@@ -679,7 +678,7 @@ def find_LU_CROW(file_in, NVAR):
 
     for line_num in range(len(source)):
         if "lu_crow_0" in source[line_num].lower():
-            print "Detected long tables!"
+            print("Detected long tables!") 
             long_tables = True
             the_line = line_num
             break
@@ -741,7 +740,7 @@ def find_LU_ICOL(file_in, NVAR):
 
     for line_num in range(len(source)):
         if "lu_icol_0" in source[line_num].lower():
-            print "Detected long tables!"
+            print("Detected long tables!")
             long_tables = True
             the_line = line_num
             break
@@ -1031,7 +1030,7 @@ def generate_define_vars(file_in,var_names):
                 out.append("#define "+name+" "+str(value)+"\n")
                 var_names.remove(var_name)
     if var_names != []:
-        print "Warning: variables "+str(var_names)+" were not found"
+        print("Warning: variables "+str(var_names)+" were not found")
     return out
 
 #
@@ -1150,7 +1149,7 @@ def remove_precision_qualifiers(line):
                                     scientif = True
                                 elif scientif and i.lower() == "e":
                                     pass
-                                elif i in string.letters+"_": # if it's a_333_dp
+                                elif i in string.ascii_letters+"_": # if it's a_333_dp
                                     pos=0
                                     for i in reversed(left[:]):
                                         if i not in var_name:
@@ -1182,7 +1181,7 @@ def generate_c2f_interface(file_in):
                 stop = i
                 break
             else:
-                print "Something went wrong in generate c2f_interface"
+                print("Something went wrong in generate c2f_interface")
                 return
     file_out = open("../smcl/messy_mecca_kpp.f90","w")
     for i in range(start):
@@ -1355,7 +1354,7 @@ def add_cuda_compilation(file_specific,file_makefile,arch):
         if line.startswith('.SUFFIXES: $(SUFFIXES) .f90 .md5'):
             line ='.SUFFIXES: $(SUFFIXES) .f90 .md5 .cu\n'
 
-        temp.write(line)
+        temp.write(line.encode())
 
     temp.close()
     os.rename('__temp', '../smcl/Makefile.m')
@@ -1378,16 +1377,16 @@ def get_transformation_flags():
 
     # Check if kpp created indirect indexing
     if ('LU_CROW(k+1)' in open("../smcl/messy_mecca_kpp.f90").read()) or ('LU_CROW(k+ 1)' in open("../smcl/messy_mecca_kpp.f90").read()):
-        print "Warning: Can't convert indirect indexing of file."
-        print "--> Change the decomp in the conf file or modify the output file.\n"
+        print("Warning: Can't convert indirect indexing of file.")
+        print("--> Change the decomp in the conf file or modify the output file.\n")
         indirect = True
 
 
     # Check if kpp created vector length chemistry
     if '= C(1:VL,:)' in open("../smcl/messy_mecca_kpp.f90").read():
-        print "Can't convert vectorized version of file."
-        print "--> Change the rosenbrock_vec to reosenbrock_mz in the conf file.\n"
-        print "Exiting... \n"
+        print("Can't convert vectorized version of file.")
+        print("--> Change the rosenbrock_vec to reosenbrock_mz in the conf file.\n")
+        print("Exiting... \n")
         vectorized = True
         exit(-1)
 
@@ -1396,7 +1395,7 @@ def get_transformation_flags():
     if ( os.path.isfile("messy_mecca_kpp_global.f90") == True             and
          os.path.isfile("messy_mecca_kpp_jacobian.f90") == True
         ):
-        print "Multifile version detected!"
+        print("Multifile version detected!")
         multifile = True
 
     if (multifile == True):
@@ -1404,7 +1403,7 @@ def get_transformation_flags():
         subroutines = find_subroutines(file_messy_mecca_kpp, ["KppDecomp","KppDecompCmplx"])
         infile = " ".join(subroutines["kppdecomp"])
         if 'LU_ICOL(kk)' in infile:
-            print "Multiple files with indirect indexing detected.\n"
+            print("Multiple files with indirect indexing detected.\n")
             indirect = True
 
     if (multifile == True):
@@ -1428,10 +1427,10 @@ pass
 #########################################################################################################
 
 def print_warning():
-    print '\033[1m' + "\n####################################################################################################"
-    print   "## WARNING!! BETA VERSION ! PLEASE REPORT TO PACKAGE MAINTAINERS ANY BUGS OR UNEXPECTED BEHAVIOUR."
-    print   "####################################################################################################\n"
-    print '\033[0m'
+    print('\033[1m' + "\n####################################################################################################")
+    print("## WARNING!! BETA VERSION ! PLEASE REPORT TO PACKAGE MAINTAINERS ANY BUGS OR UNEXPECTED BEHAVIOUR.")
+    print("####################################################################################################\n")
+    print('\033[0m')
 pass
 
 #########################################################################################################
@@ -1469,7 +1468,7 @@ def print_menu_make_selection(ros,gpu):
 
                 """)
 
-        gpu = raw_input("Option (Default 1): ")
+        gpu = input("Option (Default 1): ")
 
     arch = select_architecture(gpu)
 
@@ -1488,12 +1487,12 @@ Select Rosenbrock solver (1-6):
 
             """)
 
-        ros = raw_input("Option (Default 1): ")
+        ros = input("Option (Default 1): ")
 
     if ros not in ['1','2','3','4','5','6']:
         ros = "0"
 
-    print "Selected options: " + arch + " with ros: "  + ros + "\n"
+    print("Selected options: " + arch + " with ros: "  + ros + "\n")
     return ros,arch
 
 #########################################################################################################
@@ -1529,9 +1528,9 @@ ros,arch = print_menu_make_selection(ros,gpu)
 
 ###############################################
 # Print generic information - header
-print "\n+===================================================================+ "
-print "| KPP Fortran to CUDA praser - Copyright 2016 The Cyprus Institute  |"
-print "+===================================================================+ \n"
+print("\n+===================================================================+ ")
+print("| KPP Fortran to CUDA praser - Copyright 2016 The Cyprus Institute  |")
+print("+===================================================================+ \n")
 
 print_warning()
 
@@ -1545,9 +1544,9 @@ if ( os.path.isfile("../smcl/messy_mecca_kpp.f90") == False             or
      os.path.isfile("../smcl/specific.mk") == False or
      os.path.isfile("../smcl/Makefile.m") == False
      ):
-    print "Can't file one or more files. \n"
-    print "--> Run the script at ./messy/util directory of messy. \n"
-    print "Exiting... \n"
+    print("Can't file one or more files. \n")
+    print("--> Run the script at ./messy/util directory of messy. \n")
+    print("Exiting... \n")
     exit(-1)
 
 
@@ -1556,7 +1555,7 @@ multifile, vectorize, indirect, inject_rconst = get_transformation_flags()
 
 ###############################################
 ### Backup files
-print "==> Step 0: Backup files.\n"
+print("==> Step 0: Backup files.\n")
 
 shutil.copyfile("../smcl/specific.mk", "../smcl/specific.mk.old")
 shutil.copyfile("../smcl/Makefile.m", "../smcl/Makefile.m.old")
@@ -1574,7 +1573,7 @@ file_makefile = open("../smcl/Makefile.m","r+")
 
 
 ###############################################
-print "==> Step 1: Detect subroutines in the file."
+print("==> Step 1: Detect subroutines in the file.")
 
 subroutine_names = ["ros_PrepareMatrix","kppSolve","kppDecomp","Jac_sp","Fun","update_rconst","Initialize"]
 
@@ -1602,7 +1601,7 @@ if (multifile == True):
     subroutines6 = find_subroutines(file_messy, ["Initialize"])
 
 
-    subroutines = dict(  subroutines1.items() + subroutines2.items() + subroutines3.items() + subroutines4.items() + subroutines5.items()  + subroutines6.items() )
+    subroutines = dict(  list(subroutines1.items()) + list(subroutines2.items()) + list(subroutines3.items()) + list(subroutines4.items()) + list(subroutines5.items())  + list(subroutines6.items()) )
 
 else:
     subroutines = find_subroutines(file_messy_mecca_kpp, subroutine_names)
@@ -1612,7 +1611,7 @@ else:
 
 ###############################################
 
-print "\n==> Step 2: Replacing variables."
+print("\n==> Step 2: Replacing variables.")
 
 source_cuda["defines_vars_1"] = generate_define_vars(file_messy_main_constants_mem,["R_gas","atm2Pa","N_A"])
 source_cuda["defines_ind_1"] = generate_define_indices_one_line(file_messy_cmn_photol_mem,"ip")
@@ -1661,7 +1660,7 @@ else:
 
 
 ###############################################
-print "\n==> Step 3: Parsing function update_rconst."
+print("\n==> Step 3: Parsing function update_rconst.")
 
 source = subroutines['update_rconst']
 source = remove_comments(source)
@@ -1691,7 +1690,7 @@ rinit  = create_rconst_init(source)
 source_cuda["update_rconst"] = generate_update_rconst(rconst_ops,rconst_decls,flocals,rinit)
 
 ###############################################
-print "\n==> Step 4: Parsing function kppsolve."
+print("\n==> Step 4: Parsing function kppsolve.")
 
 source = subroutines['kppsolve']
 source = remove_comments(source)
@@ -1704,7 +1703,7 @@ source = strip_lines(source)
 source_cuda["kppsolve"] = generate_kppsolve(source)
 
 ###############################################
-print "\n==> Step 5: Parsing function kppdecomp."
+print("\n==> Step 5: Parsing function kppdecomp.")
 
 source = subroutines['kppdecomp']
 source = remove_comments(source)
@@ -1714,7 +1713,7 @@ source = fix_power_op(source)
 
 if ( indirect == True):
     source = split_beta(source,"DO k=1,NVAR")
-    print "Indirect transformation."
+    print("Indirect transformation.")
     source_cuda["kppdecomp"] = generate_kppDecompIndirect(source,NSPEC,lu_diag,lu_crow,lu_icol)
 else:
     source = split_beta(source,"W(")
@@ -1725,7 +1724,7 @@ else:
 
 
 ###############################################
-print "\n==> Step 6: Parsing function jac_sp."
+print("\n==> Step 6: Parsing function jac_sp.")
 
 source = subroutines["jac_sp"]
 source = remove_comments(source)
@@ -1737,7 +1736,7 @@ source_cuda["jac_sp"] = generate_jac_sp(source, NBSIZE)
 
 
 ###############################################
-print "\n==> Step 7: Parsing function fun."
+print("\n==> Step 7: Parsing function fun.")
 
 source = subroutines["fun"]
 source = remove_comments(source)
@@ -1748,20 +1747,20 @@ source = fix_indices(source,[("A","A"),("RCT","rconst"),("F","fix"),("V","var"),
 source_cuda["fun"] = generate_fun(source,NREACT)
 
 ###############################################
-print "\n==> Step 8: Parsing and preparing diagonal."
+print("\n==> Step 8: Parsing and preparing diagonal.")
 
 
 source_cuda["ros_preparematrix"] = generate_prepareMatrix(lu_diag)
 
 ###############################################
-print "\n==> Step 9: Generating customized solver."
+print("\n==> Step 9: Generating customized solver.")
 
 source_cuda["special_ros"] = generate_special_ros(ros,inject_rconst)
 
 
 
 ###############################################
-print "\n==> Step 10: Generating calls to customized solver."
+print("\n==> Step 10: Generating calls to customized solver.")
 
 source_cuda["call_kernel"] = generate_special_ros_caller(ros)
 
@@ -1769,7 +1768,7 @@ source_cuda["call_kernel"] = generate_special_ros_caller(ros)
 
 ###############################################
 
-print "\n==> Step 11: Generating kpp_integrate_cuda."
+print("\n==> Step 11: Generating kpp_integrate_cuda.")
 
 gen_kpp_integrate_cuda(file_prototype, source_cuda, inject_rconst)
 
@@ -1777,23 +1776,23 @@ gen_kpp_integrate_cuda(file_prototype, source_cuda, inject_rconst)
 
 ###############################################
 
-print "\n==> Step 12: Generating messy_mecca_kpp replacement."
+print("\n==> Step 12: Generating messy_mecca_kpp replacement.")
 generate_c2f_interface(file_messy_mecca_kpp)
 
 ###############################################
 
 
-print "\n==> Step 13: Modifying specific.mk and Makefile"
+print("\n==> Step 13: Modifying specific.mk and Makefile")
 
 add_cuda_compilation(file_specific,file_makefile,arch)
 
 
 ###############################################
 
-print "\n##################################################################\n"
-print "Don't forget to add the '-lcudart' in the linking options during configuration"
-print "For example, it can be added to the SPEC_NETCDF_LIB variable:"
-print "SPEC_NETCDF_LIB = -L$EBROOTNETCDFMINFORTRAN/lib -lnetcdff   -lcudart  -lstdc++"
+print("\n##################################################################\n") 
+print("Don't forget to add the '-lcudart' in the linking options during configuration")
+print("For example, it can be added to the SPEC_NETCDF_LIB variable:")
+print("SPEC_NETCDF_LIB = -L$EBROOTNETCDFMINFORTRAN/lib -lnetcdff   -lcudart  -lstdc++")
 
 
 print_warning()

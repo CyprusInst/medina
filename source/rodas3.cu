@@ -285,7 +285,7 @@ void Rosenbrock_rodas3(double * __restrict__ conc, const double Tstart, const do
     double Fcn0_stack[NVAR];
     double jac0_stack[LU_NONZERO];
     double dFdT_stack[NVAR];
-    double Ghimj_stack[LU_NONZERO*3];
+    double Ghimj_stack[LU_NONZERO];
     double K_stack[6*NVAR];
 
 
