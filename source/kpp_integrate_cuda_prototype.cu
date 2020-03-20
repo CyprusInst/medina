@@ -597,6 +597,7 @@ __device__ __constant__  ros_t ros[5] = {
 //__device__ double rconst_local[MAX_VL_GLO*NREACT];
 
 /* Initialize rconst local  */
+__device__ double * rconst_local;
 
 
 __device__ double k_3rd(double temp, double cair, double k0_300K, double n, double kinf_300K, double m, double fc)

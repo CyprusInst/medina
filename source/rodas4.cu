@@ -337,7 +337,8 @@ void Rosenbrock_rodas4(double * __restrict__ conc, const double Tstart, const do
         for (int i=0; i<NFIX; i++)
             fix(index,i) = conc(index,NVAR+i);
 
-        update_rconst(var, khet_st, khet_tr, jx, VL_GLO);
+        //update_rconst(var, khet_st, khet_tr, jx, VL_GLO);
+        update_rconst(var, khet_st, khet_tr, jx, rconst, temp_gpu, press_gpu, cair_gpu, VL_GLO); 
 
         ros_Integrator_rodas4(var, fix, Tstart, Tend, Texit,
 

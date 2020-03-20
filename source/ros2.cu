@@ -175,6 +175,9 @@ void Rosenbrock_ros2(double * __restrict__ conc, const double Tstart, const doub
     	        const double * __restrict__ khet_st, const double * __restrict__ khet_tr,
 		const double * __restrict__ jx,
                 // extra
+                const double * __restrict__ temp_gpu,
+                const double * __restrict__ press_gpu,
+                const double * __restrict__ cair_gpu,
                 const int VL_GLO)
 {
     int index = blockIdx.x*blockDim.x+threadIdx.x;
@@ -245,7 +248,8 @@ void Rosenbrock_ros2(double * __restrict__ conc, const double Tstart, const doub
         for (int i=0; i<NFIX; i++)
             fix(index,i) = conc(index,NVAR+i);
 
-        update_rconst(var, khet_st, khet_tr, jx, VL_GLO);
+        //update_rconst(var, khet_st, khet_tr, jx, VL_GLO);
+        update_rconst(var, khet_st, khet_tr, jx, rconst, temp_gpu, press_gpu, cair_gpu, VL_GLO); 
 
         ros_Integrator_ros2(var, fix, Tstart, Tend, Texit,
                 //  Integration parameters
