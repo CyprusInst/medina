@@ -95,8 +95,6 @@ __device__  static  int ros_Integrator_rodas3(double * __restrict__ var, const d
     rejectLastH=0;
     rejectMoreH=0;
 
-
-
     //   ~~~> Time loop begins below
 
     // TimeLoop: 
@@ -290,10 +288,8 @@ void Rosenbrock_rodas3(double * __restrict__ conc, const double Tstart, const do
     double dFdT_stack[NVAR];
     double Ghimj_stack[LU_NONZERO];
     double K_stack[6*NVAR];
+    double rconst_stack[NREACT];
 
-
-    /* Allocated in Global mem */
-    double *rconst = rconst_local;
 
     /* Allocated in stack */
     double *Ghimj  = Ghimj_stack;
@@ -305,6 +301,7 @@ void Rosenbrock_rodas3(double * __restrict__ conc, const double Tstart, const do
     double *varErr = varErr_stack;
     double *var    = var_stack;
     double *fix    = fix_stack;  
+    double *rconst = rconst_stack;
 
     if (index < VL_GLO)
     {
