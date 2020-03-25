@@ -22,6 +22,7 @@ __device__  static  int ros_Integrator_rodas4(double * __restrict__ var, const d
     int direction;
     int rejectLastH, rejectMoreH;
     const double DELTAMIN = 1.0E-5;
+
     const int ros_S = 6; 
 
     //   ~~~>  Initial preparations
@@ -262,7 +263,6 @@ __device__  static  int ros_Integrator_rodas4(double * __restrict__ var, const d
     return 0; //  ~~~> The integration was successful
 }
 
-
 __global__ 
 void Rosenbrock_rodas4(double * __restrict__ conc, const double Tstart, const double Tend, double * __restrict__ rstatus, int * __restrict__ istatus,
                 // values calculated from icntrl and rcntrl at host
@@ -273,6 +273,9 @@ void Rosenbrock_rodas4(double * __restrict__ conc, const double Tstart, const do
     	        const double * __restrict__ khet_st, const double * __restrict__ khet_tr,
 		const double * __restrict__ jx,
                 // extra
+                const double * __restrict__ temp_gpu,
+                const double * __restrict__ press_gpu,
+                const double * __restrict__ cair_gpu,
                 const int VL_GLO)
 {
     int index = blockIdx.x*blockDim.x+threadIdx.x;
@@ -297,10 +300,8 @@ void Rosenbrock_rodas4(double * __restrict__ conc, const double Tstart, const do
     double dFdT_stack[NVAR];
     double Ghimj_stack[LU_NONZERO];
     double K_stack[6*NVAR];
+    double rconst_stack[NREACT];
 
-
-    /* Allocated in Global mem */
-    double *rconst = rconst_local;
 
     /* Allocated in stack */
     double *Ghimj  = Ghimj_stack;
@@ -312,13 +313,15 @@ void Rosenbrock_rodas4(double * __restrict__ conc, const double Tstart, const do
     double *varErr = varErr_stack;
     double *var    = var_stack;
     double *fix    = fix_stack;  
+    double *rconst = rconst_stack;
+
+    const int method = 5;
 
     if (index < VL_GLO)
     {
 
         int Nfun,Njac,Nstp,Nacc,Nrej,Ndec,Nsol,Nsng;
         double Texit, Hexit;
-        const int method = 5 ;
 
         Nfun = 0;
         Njac = 0;
@@ -337,10 +340,10 @@ void Rosenbrock_rodas4(double * __restrict__ conc, const double Tstart, const do
         for (int i=0; i<NFIX; i++)
             fix(index,i) = conc(index,NVAR+i);
 
-        update_rconst(var, khet_st, khet_tr, jx, VL_GLO);
+        //update_rconst(var, khet_st, khet_tr, jx, VL_GLO);
+        update_rconst(var, khet_st, khet_tr, jx, rconst, temp_gpu, press_gpu, cair_gpu, VL_GLO); 
 
         ros_Integrator_rodas4(var, fix, Tstart, Tend, Texit,
-
                 //  Integration parameters
                 autonomous, vectorTol, Max_no_steps, 
                 roundoff, Hmin, Hmax, Hstart, Hexit, 

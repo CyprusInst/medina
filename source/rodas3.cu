@@ -95,8 +95,6 @@ __device__  static  int ros_Integrator_rodas3(double * __restrict__ var, const d
     rejectLastH=0;
     rejectMoreH=0;
 
-
-
     //   ~~~> Time loop begins below
 
     // TimeLoop: 
@@ -263,6 +261,9 @@ void Rosenbrock_rodas3(double * __restrict__ conc, const double Tstart, const do
     	        const double * __restrict__ khet_st, const double * __restrict__ khet_tr,
 		const double * __restrict__ jx,
                 // extra
+                const double * __restrict__ temp_gpu,
+                const double * __restrict__ press_gpu,
+                const double * __restrict__ cair_gpu,
                 const int VL_GLO)
 {
     int index = blockIdx.x*blockDim.x+threadIdx.x;
@@ -287,10 +288,8 @@ void Rosenbrock_rodas3(double * __restrict__ conc, const double Tstart, const do
     double dFdT_stack[NVAR];
     double Ghimj_stack[LU_NONZERO];
     double K_stack[6*NVAR];
+    double rconst_stack[NREACT];
 
-
-    /* Allocated in Global mem */
-    double *rconst = rconst_local;
 
     /* Allocated in stack */
     double *Ghimj  = Ghimj_stack;
@@ -302,6 +301,7 @@ void Rosenbrock_rodas3(double * __restrict__ conc, const double Tstart, const do
     double *varErr = varErr_stack;
     double *var    = var_stack;
     double *fix    = fix_stack;  
+    double *rconst = rconst_stack;
 
     if (index < VL_GLO)
     {
@@ -346,7 +346,8 @@ void Rosenbrock_rodas3(double * __restrict__ conc, const double Tstart, const do
         for (int i=0; i<NFIX; i++)
             fix(index,i) = conc(index,NVAR+i);
 
-        update_rconst(var, khet_st, khet_tr, jx, VL_GLO);
+        //update_rconst(var, khet_st, khet_tr, jx, VL_GLO);
+        update_rconst(var, khet_st, khet_tr, jx, rconst, temp_gpu, press_gpu, cair_gpu, VL_GLO); 
 
         ros_Integrator_rodas3(var, fix, Tstart, Tend, Texit,
                 //  Integration parameters

@@ -394,12 +394,14 @@ def generate_update_rconst(rconst_ops,rconst_decls,locals,rcint):
     update_rconst.append( \
     "__device__ void  update_rconst(const double * __restrict__ var, \n \
 			       const double * __restrict__ khet_st, const double * __restrict__ khet_tr,\n \
-			       const double * __restrict__ jx, \n\
+			       const double * __restrict__ jx, double * __restrict__ rconst, \n\
+			       const double * __restrict__ temp_gpu, \n\
+			       const double * __restrict__ press_gpu, \n\
+			       const double * __restrict__ cair_gpu, \n\
 			       const int VL_GLO)\n")
     update_rconst.append("{\n")
     update_rconst.append("    int index = blockIdx.x*blockDim.x+threadIdx.x;\n\n")
     update_rconst.append("    /* Set local buffer */\n")
-    update_rconst.append("    double *rconst = rconst_local;\n")
     update_rconst.append("\n")
     update_rconst.append("    {\n")
     update_rconst.append("        const double temp_loc  = temp_gpu[index];\n")
@@ -865,6 +867,8 @@ def generate_special_ros_caller(ros):
                     //  cuda global mem buffers              \n\
                     d_absTol, d_relTol,   \n\
                     d_khet_st, d_khet_tr, d_jx, \n\
+                    // Global input arrays\n\
+                    temp_gpu, press_gpu, cair_gpu, \n\
                     // extra - vector lenght and processor\n\
                     VL_GLO); '
 
@@ -876,6 +880,7 @@ def generate_special_ros_caller(ros):
                     Hmin, Hmax, Hstart, FacMin, FacMax, FacRej, FacSafe, roundoff,\n\
                     d_absTol, d_relTol,\n\
                     d_khet_st, d_khet_tr, d_jx, \n\
+                    temp_gpu, press_gpu, cair_gpu, \n\
                     VL_GLO);\n\
             break;\n\
         default: \n' + default_call + '\n\
@@ -891,6 +896,7 @@ def generate_special_ros_caller(ros):
                     Hmin, Hmax, Hstart, FacMin, FacMax, FacRej, FacSafe, roundoff,\n\
                     d_absTol, d_relTol,\n\
                     d_khet_st, d_khet_tr, d_jx, \n\
+                    temp_gpu, press_gpu, cair_gpu, \n\
                     VL_GLO);\n\
             break;\n\
         default: \n' + default_call + '\n\
@@ -907,6 +913,7 @@ def generate_special_ros_caller(ros):
                     Hmin, Hmax, Hstart, FacMin, FacMax, FacRej, FacSafe, roundoff,\n\
                     d_absTol, d_relTol,\n\
                     d_khet_st, d_khet_tr, d_jx, \n\
+                    temp_gpu, press_gpu, cair_gpu, \n\
                     VL_GLO);\n\
             break;\n\
         default: \n' + default_call + '\n\
@@ -923,6 +930,7 @@ def generate_special_ros_caller(ros):
                     Hmin, Hmax, Hstart, FacMin, FacMax, FacRej, FacSafe, roundoff,\n\
                     d_absTol, d_relTol,\n\
                     d_khet_st, d_khet_tr, d_jx, \n\
+                    temp_gpu, press_gpu, cair_gpu, \n\
                     VL_GLO);\n\
             break;\n\
         default: \n' + default_call + '\n\
@@ -939,6 +947,7 @@ def generate_special_ros_caller(ros):
                     Hmin, Hmax, Hstart, FacMin, FacMax, FacRej, FacSafe, roundoff,\n\
                     d_absTol, d_relTol,\n\
                     d_khet_st, d_khet_tr, d_jx, \n\
+                    temp_gpu, press_gpu, cair_gpu, \n\
                     VL_GLO);\n\
             break;\n\
         default: \n' + default_call + '\n\

@@ -1,5 +1,4 @@
 
-
 __device__  static  int ros_Integrator_ros4(double * __restrict__ var, const double * __restrict__ fix, const double Tstart, const double Tend, double &T,
         //  Integration parameters
         const int autonomous, const int vectorTol, const int Max_no_steps, 
@@ -25,7 +24,7 @@ __device__  static  int ros_Integrator_ros4(double * __restrict__ var, const dou
     const double DELTAMIN = 1.0E-5;
 
     const int ros_S = 4;
-          
+
     //   ~~~>  Initial preparations
     T = Tstart;
     Hexit = 0.0;
@@ -44,9 +43,6 @@ __device__  static  int ros_Integrator_ros4(double * __restrict__ var, const dou
 
     rejectLastH=0;
     rejectMoreH=0;
-
-
-    //   ~~~> Time loop begins below
 
     // TimeLoop: 
     while((direction > 0) && ((T- Tend)+ roundoff <= ZERO) || (direction < 0) && ((Tend-T)+ roundoff <= ZERO))
@@ -88,7 +84,7 @@ __device__  static  int ros_Integrator_ros4(double * __restrict__ var, const dou
 		for (int i=0; i<NVAR; i++)		
 			K(index,istage,i)  = Fcn0(index,i);
 
-                if ((!autonomous) )
+                if ((!autonomous))
                 {
                     HG = direction*H*(0.5728200000000000E+00);
                     for (int i=0; i<NVAR; i++){
@@ -119,6 +115,7 @@ __device__  static  int ros_Integrator_ros4(double * __restrict__ var, const dou
                         K(index,istage,i) += dFdT(index,i)*HG;
 		     }
                 }
+
                 ros_Solve(Ghimj, K, Nsol, istage, ros_S);
             } // Stage
 
@@ -241,7 +238,6 @@ __device__  static  int ros_Integrator_ros4(double * __restrict__ var, const dou
     return 0; //  ~~~> The integration was successful
 }
 
-
 __global__ 
 void Rosenbrock_ros4(double * __restrict__ conc, const double Tstart, const double Tend, double * __restrict__ rstatus, int * __restrict__ istatus,
                 // values calculated from icntrl and rcntrl at host
@@ -252,6 +248,9 @@ void Rosenbrock_ros4(double * __restrict__ conc, const double Tstart, const doub
     	        const double * __restrict__ khet_st, const double * __restrict__ khet_tr,
 		const double * __restrict__ jx,
                 // extra
+                const double * __restrict__ temp_gpu,
+                const double * __restrict__ press_gpu,
+                const double * __restrict__ cair_gpu,
                 const int VL_GLO)
 {
     int index = blockIdx.x*blockDim.x+threadIdx.x;
@@ -276,10 +275,7 @@ void Rosenbrock_ros4(double * __restrict__ conc, const double Tstart, const doub
     double dFdT_stack[NVAR];
     double Ghimj_stack[LU_NONZERO];
     double K_stack[6*NVAR];
-
-
-    /* Allocated in Global mem */
-    double *rconst = rconst_local;
+    double rconst_stack[NREACT];
 
     /* Allocated in stack */
     double *Ghimj  = Ghimj_stack;
@@ -291,6 +287,7 @@ void Rosenbrock_ros4(double * __restrict__ conc, const double Tstart, const doub
     double *varErr = varErr_stack;
     double *var    = var_stack;
     double *fix    = fix_stack;  
+    double *rconst = rconst_stack;
 
     if (index < VL_GLO)
     {
@@ -323,7 +320,8 @@ void Rosenbrock_ros4(double * __restrict__ conc, const double Tstart, const doub
         for (int i=0; i<NFIX; i++)
             fix(index,i) = conc(index,NVAR+i);
 
-        update_rconst(var, khet_st, khet_tr, jx, VL_GLO);
+        //update_rconst(var, khet_st, khet_tr, jx, VL_GLO);
+        update_rconst(var, khet_st, khet_tr, jx, rconst, temp_gpu, press_gpu, cair_gpu, VL_GLO); 
 
         /* 
          * Optimization TODO: create versions of the ros_integrator.

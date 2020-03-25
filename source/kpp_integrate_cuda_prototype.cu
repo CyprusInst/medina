@@ -19,7 +19,7 @@
 
 #define BLOCKSIZE 64
 
-#define MAX_VL_GLO 12288 /* elements that will pass in each call */
+//#define MAX_VL_GLO 12288 /* elements that will pass in each call */
 
 #define REDUCTION_SIZE_1 64
 #define REDUCTION_SIZE_2 32
@@ -68,7 +68,7 @@
 
 #define ROUND128(X)  (X + (128 - 1)) & ~(128 - 1)
 
-#define rconst(i,j)  rconst[(j)*(VL_GLO)+(i)]
+#define rconst(i,j)  rconst[(j)]
 
 
 /* Temporary arrays allocated in stack */
@@ -140,7 +140,10 @@ __device__ inline void prefetch_ll2(const void *p) {
 
 __device__ void  update_rconst(const double * __restrict__ var,
 			       const double * __restrict__ khet_st, const double * __restrict__ khet_tr,
-			       const double * __restrict__ jx, 
+			       const double * __restrict__ jx, double * __restrict__ rconst,
+ 			       const double * __restrict__ temp_gpu,
+ 			       const double * __restrict__ press_gpu,
+ 			       const double * __restrict__ cair_gpu,
 			       const int VL_GLO);
 
 /* This runs on CPU */
@@ -591,9 +594,10 @@ __device__ __constant__  ros_t ros[5] = {
 
 
 
-__device__ double rconst_local[MAX_VL_GLO*NREACT];
+//__device__ double rconst_local[MAX_VL_GLO*NREACT];
 
 /* Initialize rconst local  */
+//__device__ double * rconst_local;
 
 
 __device__ double k_3rd(double temp, double cair, double k0_300K, double n, double kinf_300K, double m, double fc)
@@ -648,9 +652,9 @@ __device__ double k_3rd_iupac(double temp, double cair, double k0_300K, double n
 
 
 
-__device__  double temp_gpu[MAX_VL_GLO];
-__device__  double press_gpu[MAX_VL_GLO];
-__device__  double cair_gpu[MAX_VL_GLO];
+double * temp_gpu;
+double * press_gpu;
+double * cair_gpu;
 
 
 =#=#=#=#=#=#=#=#=#=#=update_rconst=#=#=#=#=#=#=#=#=#=#=
@@ -666,6 +670,10 @@ void Rosenbrock(double * __restrict__ conc, const double Tstart, const double Te
                 // for update_rconst
     	        const double * __restrict__ khet_st, const double * __restrict__ khet_tr,
 		const double * __restrict__ jx,
+                // global input
+                const double * __restrict__ temp_gpu,
+                const double * __restrict__ press_gpu,
+                const double * __restrict__ cair_gpu,
                 // extra
                 const int VL_GLO)
 {
@@ -694,7 +702,7 @@ void Rosenbrock(double * __restrict__ conc, const double Tstart, const double Te
 
 
     /* Allocated in Global mem */
-    double *rconst = rconst_local;
+    double rconst_stack[NREACT];
 
     /* Allocated in stack */
     double *Ghimj  = Ghimj_stack;
@@ -706,6 +714,7 @@ void Rosenbrock(double * __restrict__ conc, const double Tstart, const double Te
     double *varErr = varErr_stack;
     double *var    = var_stack;
     double *fix    = fix_stack;  
+    double *rconst = rconst_stack;
 
     if (index < VL_GLO)
     {
@@ -752,7 +761,7 @@ void Rosenbrock(double * __restrict__ conc, const double Tstart, const double Te
             fix(index,i) = conc(index,NVAR+i);
 
 
-        update_rconst(var, khet_st, khet_tr, jx, VL_GLO); 
+        update_rconst(var, khet_st, khet_tr, jx, rconst, temp_gpu, press_gpu, cair_gpu, VL_GLO); 
 
         ros_Integrator(var, fix, Tstart, Tend, Texit,
                 //  Rosenbrock method coefficients
@@ -962,6 +971,11 @@ __host__ void init_first_time(int pe, int VL_GLO, int size_khet_st, int size_khe
     gpuErrchk( cudaMalloc ((void **) &d_absTol     , sizeof(double)*NVAR)              );
     gpuErrchk( cudaMalloc ((void **) &d_relTol     , sizeof(double)*NVAR)              );
 
+    /* Allocate input arrays */
+    gpuErrchk( cudaMalloc ((void **) &temp_gpu     , sizeof(double)*VL_GLO)              );
+    gpuErrchk( cudaMalloc ((void **) &press_gpu     , sizeof(double)*VL_GLO)              );
+    gpuErrchk( cudaMalloc ((void **) &cair_gpu     , sizeof(double)*VL_GLO)              );
+
     /* Allocate arrays on device for reduce_foo */
     gpuErrchk( cudaMalloc ((void **) &d_istatus_rd  , sizeof(int)*8));
     gpuErrchk( cudaMalloc ((void **) &d_tmp_out_1   , sizeof(int4)*64));
@@ -994,6 +1008,9 @@ extern "C" void finalize_cuda(){
     gpuErrchk( cudaFree(d_tmp_out_2   ) ); 
     gpuErrchk( cudaFree(d_xNacc       ) ); 
     gpuErrchk( cudaFree(d_xNrej       ) ); 
+    gpuErrchk( cudaFree(temp_gpu      ) ); 
+    gpuErrchk( cudaFree(press_gpu     ) ); 
+    gpuErrchk( cudaFree(cair_gpu      ) ); 
 }
 
 
@@ -1068,9 +1085,9 @@ extern "C" void kpp_integrate_cuda_( int *pe_p, int *sizes, double *time_step_le
     /* Copy data from host memory to device memory */
     gpuErrchk( cudaMemcpy(d_conc   , conc   	, sizeof(double)*VL_GLO*NSPEC        , cudaMemcpyHostToDevice) );
 
-    gpuErrchk( cudaMemcpyToSymbol(temp_gpu   , temp   	, sizeof(double)*VL_GLO  ) );
-    gpuErrchk( cudaMemcpyToSymbol(press_gpu  , press  	, sizeof(double)*VL_GLO  ) );
-    gpuErrchk( cudaMemcpyToSymbol(cair_gpu   , cair   	, sizeof(double)*VL_GLO  ) );
+    gpuErrchk( cudaMemcpy(temp_gpu   , temp   	, sizeof(double)*VL_GLO  , cudaMemcpyHostToDevice) );
+    gpuErrchk( cudaMemcpy(press_gpu  , press  	, sizeof(double)*VL_GLO  , cudaMemcpyHostToDevice) );
+    gpuErrchk( cudaMemcpy(cair_gpu   , cair   	, sizeof(double)*VL_GLO  , cudaMemcpyHostToDevice) );
 
     gpuErrchk( cudaMemcpy(d_khet_st, khet_st	, sizeof(double)*VL_GLO*size_khet_st , cudaMemcpyHostToDevice) );
     gpuErrchk( cudaMemcpy(d_khet_tr, khet_tr	, sizeof(double)*VL_GLO*size_khet_tr , cudaMemcpyHostToDevice) );

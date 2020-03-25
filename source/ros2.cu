@@ -23,6 +23,7 @@ __device__  static  int ros_Integrator_ros2(double * __restrict__ var, const dou
     int direction;
     int rejectLastH, rejectMoreH;
     const double DELTAMIN = 1.0E-5;
+
     const int ros_S = 2; 
 
     //   ~~~>  Initial preparations
@@ -43,10 +44,6 @@ __device__  static  int ros_Integrator_ros2(double * __restrict__ var, const dou
 
     rejectLastH=0;
     rejectMoreH=0;
-
-
-
-    //   ~~~> Time loop begins below
 
     // TimeLoop: 
     while((direction > 0) && ((T- Tend)+ roundoff <= ZERO) || (direction < 0) && ((Tend-T)+ roundoff <= ZERO))
@@ -175,6 +172,9 @@ void Rosenbrock_ros2(double * __restrict__ conc, const double Tstart, const doub
     	        const double * __restrict__ khet_st, const double * __restrict__ khet_tr,
 		const double * __restrict__ jx,
                 // extra
+                const double * __restrict__ temp_gpu,
+                const double * __restrict__ press_gpu,
+                const double * __restrict__ cair_gpu,
                 const int VL_GLO)
 {
     int index = blockIdx.x*blockDim.x+threadIdx.x;
@@ -199,10 +199,8 @@ void Rosenbrock_ros2(double * __restrict__ conc, const double Tstart, const doub
     double dFdT_stack[NVAR];
     double Ghimj_stack[LU_NONZERO];
     double K_stack[6*NVAR];
+    double rconst_stack[NREACT];
 
-
-    /* Allocated in Global mem */
-    double *rconst = rconst_local;
 
     /* Allocated in stack */
     double *Ghimj  = Ghimj_stack;
@@ -214,6 +212,7 @@ void Rosenbrock_ros2(double * __restrict__ conc, const double Tstart, const doub
     double *varErr = varErr_stack;
     double *var    = var_stack;
     double *fix    = fix_stack;  
+    double *rconst = rconst_stack;
 
     if (index < VL_GLO)
     {
@@ -245,7 +244,8 @@ void Rosenbrock_ros2(double * __restrict__ conc, const double Tstart, const doub
         for (int i=0; i<NFIX; i++)
             fix(index,i) = conc(index,NVAR+i);
 
-        update_rconst(var, khet_st, khet_tr, jx, VL_GLO);
+        //update_rconst(var, khet_st, khet_tr, jx, VL_GLO);
+        update_rconst(var, khet_st, khet_tr, jx, rconst, temp_gpu, press_gpu, cair_gpu, VL_GLO); 
 
         ros_Integrator_ros2(var, fix, Tstart, Tend, Texit,
                 //  Integration parameters
