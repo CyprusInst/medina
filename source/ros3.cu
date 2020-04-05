@@ -201,6 +201,7 @@ void Rosenbrock_ros3(double * __restrict__ conc, const double Tstart, const doub
      *  optimize accesses. 
      *
      */
+/*
     double varNew_stack[NVAR];
     double var_stack[NVAR];
     double varErr_stack[NVAR];
@@ -211,8 +212,9 @@ void Rosenbrock_ros3(double * __restrict__ conc, const double Tstart, const doub
     double Ghimj_stack[LU_NONZERO];
     double K_stack[3*NVAR];
     double rconst_stack[NREACT];
-
+*/
     /* Allocated in stack */
+/*
     double *Ghimj  = Ghimj_stack;
     double *K      = K_stack;
     double *varNew = varNew_stack;
@@ -223,6 +225,19 @@ void Rosenbrock_ros3(double * __restrict__ conc, const double Tstart, const doub
     double *var    = var_stack;
     double *fix    = fix_stack;  
     double *rconst = rconst_stack;
+*/
+
+    double *Ghimj  = (double*)malloc(LU_NONZERO);
+    double *K      = (double*)malloc(3*NVAR);
+    double *varNew = (double*)malloc(NVAR);
+    double *Fcn0   = (double*)malloc(NVAR);
+    double *dFdT   = (double*)malloc(NVAR);
+    double *jac0   = (double*)malloc(LU_NONZERO);  
+    double *varErr = (double*)malloc(NVAR);  
+    double *var    = (double*)malloc(NSPEC);  
+    double *fix    = (double*)malloc(NFIX);  
+    double *rconst = (double*)malloc(NREACT);
+
 
     const int method = 2;
 
@@ -291,6 +306,18 @@ void Rosenbrock_ros3(double * __restrict__ conc, const double Tstart, const doub
         // Last T and H
         rstatus(index,itexit) = Texit;
         rstatus(index,ihexit) = Hexit; 
+
+	free(Ghimj); 
+	free(K);     
+	free(varNew);
+	free(Fcn0);  
+	free(dFdT);  
+	free(jac0);  
+	free(varErr);
+	free(var);   
+	free(fix);   
+	free(rconst);
+
     }
 }
 
