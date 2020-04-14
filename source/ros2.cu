@@ -166,6 +166,7 @@ __global__
 void Rosenbrock_ros2(double * __restrict__ conc, const double Tstart, const double Tend, double * __restrict__ rstatus, int * __restrict__ istatus,
                 // values calculated from icntrl and rcntrl at host
                 const int autonomous, const int vectorTol, const int UplimTol,  const int Max_no_steps,
+                double * __restrict__ jac0, double * __restrict__ Ghimj, double * __restrict__ varNew, double * __restrict__ K, double * __restrict__ varErr,double * __restrict__ dFdT ,double * __restrict__ Fcn0,
                 const double Hmin, const double Hmax, const double Hstart, const double FacMin, const double FacMax, const double FacRej, const double FacSafe, const double roundoff,
                 //  cuda global mem buffers              
                 const double * __restrict__ absTol, const double * __restrict__ relTol,
@@ -179,7 +180,6 @@ void Rosenbrock_ros2(double * __restrict__ conc, const double Tstart, const doub
 {
     int index = blockIdx.x*blockDim.x+threadIdx.x;
 
-    /* Temporary arrays allocated in stack */
 
     /* 
      *  Optimization NOTE: runs faster on Tesla/Fermi 
@@ -190,26 +190,18 @@ void Rosenbrock_ros2(double * __restrict__ conc, const double Tstart, const doub
      *  optimize accesses. 
      *
      */
-    double varNew_stack[NVAR];
+    Ghimj  = &Ghimj[index*LU_NONZERO];    
+    K      = &K[index*NVAR*2];
+    varNew = &varNew[index*NVAR];
+    Fcn0   = &Fcn0[index*NVAR];
+    dFdT   = &dFdT[index*NVAR];
+    jac0   = &jac0[index*LU_NONZERO];
+    varErr = &varErr[index*NVAR];
+
+    /* Temporary arrays allocated in stack */
     double var_stack[NVAR];
-    double varErr_stack[NVAR];
     double fix_stack[NFIX];
-    double Fcn0_stack[NVAR];
-    double jac0_stack[LU_NONZERO];
-    double dFdT_stack[NVAR];
-    double Ghimj_stack[LU_NONZERO];
-    double K_stack[2*NVAR];
     double rconst_stack[NREACT];
-
-
-    /* Allocated in stack */
-    double *Ghimj  = Ghimj_stack;
-    double *K      = K_stack;
-    double *varNew = varNew_stack;
-    double *Fcn0   = Fcn0_stack;
-    double *dFdT   = dFdT_stack;
-    double *jac0   = jac0_stack;
-    double *varErr = varErr_stack;
     double *var    = var_stack;
     double *fix    = fix_stack;  
     double *rconst = rconst_stack;
@@ -244,7 +236,6 @@ void Rosenbrock_ros2(double * __restrict__ conc, const double Tstart, const doub
         for (int i=0; i<NFIX; i++)
             fix(index,i) = conc(index,NVAR+i);
 
-        //update_rconst(var, khet_st, khet_tr, jx, VL_GLO);
         update_rconst(var, khet_st, khet_tr, jx, rconst, temp_gpu, press_gpu, cair_gpu, VL_GLO); 
 
         ros_Integrator_ros2(var, fix, Tstart, Tend, Texit,

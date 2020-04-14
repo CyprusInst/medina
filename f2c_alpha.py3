@@ -863,6 +863,7 @@ def generate_special_ros_caller(ros):
     default_call = '      Rosenbrock<<<dimGrid,dimBlock>>>(d_conc, Tstart, Tend, d_rstatus, d_istatus,\n\
                     // values calculated from icntrl and rcntrl at host\n\
                     autonomous, vectorTol, UplimTol, method, Max_no_steps,\n\
+                    d_jac0, d_Ghimj,d_varNew, d_K, d_varErr, d_dFdT, d_Fcn0,\n\
                     Hmin, Hmax, Hstart, FacMin, FacMax, FacRej, FacSafe, roundoff,\n\
                     //  cuda global mem buffers              \n\
                     d_absTol, d_relTol,   \n\
@@ -877,6 +878,7 @@ def generate_special_ros_caller(ros):
         case 1:\n\
             Rosenbrock_ros2<<<dimGrid,dimBlock>>>(d_conc, Tstart, Tend, d_rstatus, d_istatus,\n\
                     autonomous, vectorTol, UplimTol, Max_no_steps,\n\
+                    d_jac0, d_Ghimj,d_varNew, d_K, d_varErr, d_dFdT, d_Fcn0,\n\
                     Hmin, Hmax, Hstart, FacMin, FacMax, FacRej, FacSafe, roundoff,\n\
                     d_absTol, d_relTol,\n\
                     d_khet_st, d_khet_tr, d_jx, \n\
@@ -893,6 +895,7 @@ def generate_special_ros_caller(ros):
         case 2:\n\
             Rosenbrock_ros3<<<dimGrid,dimBlock>>>(d_conc, Tstart, Tend, d_rstatus, d_istatus,\n\
                     autonomous, vectorTol, UplimTol, Max_no_steps,\n\
+                    d_jac0, d_Ghimj,d_varNew, d_K, d_varErr, d_dFdT, d_Fcn0,\n\
                     Hmin, Hmax, Hstart, FacMin, FacMax, FacRej, FacSafe, roundoff,\n\
                     d_absTol, d_relTol,\n\
                     d_khet_st, d_khet_tr, d_jx, \n\
@@ -910,6 +913,7 @@ def generate_special_ros_caller(ros):
         case 3:\n\
             Rosenbrock_ros4<<<dimGrid,dimBlock>>>(d_conc, Tstart, Tend, d_rstatus, d_istatus,\n\
                     autonomous, vectorTol, UplimTol, Max_no_steps,\n\
+                    d_jac0, d_Ghimj,d_varNew, d_K, d_varErr, d_dFdT, d_Fcn0,\n\
                     Hmin, Hmax, Hstart, FacMin, FacMax, FacRej, FacSafe, roundoff,\n\
                     d_absTol, d_relTol,\n\
                     d_khet_st, d_khet_tr, d_jx, \n\
@@ -927,6 +931,7 @@ def generate_special_ros_caller(ros):
         case 4:\n\
             Rosenbrock_rodas3<<<dimGrid,dimBlock>>>(d_conc, Tstart, Tend, d_rstatus, d_istatus,\n\
                     autonomous, vectorTol, UplimTol, Max_no_steps,\n\
+                    d_jac0, d_Ghimj,d_varNew, d_K, d_varErr, d_dFdT, d_Fcn0,\n\
                     Hmin, Hmax, Hstart, FacMin, FacMax, FacRej, FacSafe, roundoff,\n\
                     d_absTol, d_relTol,\n\
                     d_khet_st, d_khet_tr, d_jx, \n\
@@ -944,6 +949,7 @@ def generate_special_ros_caller(ros):
         case 5:\n\
             Rosenbrock_rodas4<<<dimGrid,dimBlock>>>(d_conc, Tstart, Tend, d_rstatus, d_istatus,\n\
                     autonomous, vectorTol, UplimTol, Max_no_steps,\n\
+                    d_jac0, d_Ghimj,d_varNew, d_K, d_varErr, d_dFdT, d_Fcn0,\n\
                     Hmin, Hmax, Hstart, FacMin, FacMax, FacRej, FacSafe, roundoff,\n\
                     d_absTol, d_relTol,\n\
                     d_khet_st, d_khet_tr, d_jx, \n\
