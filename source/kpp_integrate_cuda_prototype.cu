@@ -1,9 +1,9 @@
 /*************************************************************
- * 
+ *
  *    kpp_integrate_cuda_prototype.cu
  *    Prototype file for kpp CUDA kernel
  *
- *    Copyright 2016 The Cyprus Institute 
+ *    Copyright 2016 The Cyprus Institute
  *
  *    Developers: Michail Alvanos - m.alvanos@cyi.ac.cy
  *                Giannis Ashiotis
@@ -62,7 +62,7 @@
 #define khet_st(i,j) khet_st[(j)*VL_GLO+(i)]
 #define khet_tr(i,j) khet_tr[(j)*VL_GLO+(i)]
 #define jx(i,j)      jx[j*VL_GLO+i]
-#define istatus(i,j) istatus[(j)*(VL_GLO)+(i)]   
+#define istatus(i,j) istatus[(j)*(VL_GLO)+(i)]
 #define rstatus(i,j) rstatus[(j)*(VL_GLO)+(i)]
 
 
@@ -83,12 +83,12 @@
 #define dFdT(i,j)   dFdT[(j)]
 #define varErr(i,j) varErr[(j)]
 #define K(i,j,k) K[(j)*(NVAR)+(k)]
-#define jac0(i,j)    jac0[(j)]    
-#define Ghimj(i,j)   Ghimj[(j)]   
+#define jac0(i,j)    jac0[(j)]
+#define Ghimj(i,j)   Ghimj[(j)]
 
 
 /* Enable debug flags for GPU */
-//#define DEBUG
+#define DEBUG
 
 #ifdef DEBUG
 #define GPU_DEBUG()\
@@ -664,6 +664,7 @@ __global__
 void Rosenbrock(double * __restrict__ conc, const double Tstart, const double Tend, double * __restrict__ rstatus, int * __restrict__ istatus,
                 // values calculated from icntrl and rcntrl at host
                 const int autonomous, const int vectorTol, const int UplimTol, const int method, const int Max_no_steps,
+                double * __restrict__ d_jac0, double * __restrict__ d_Ghimj, double * __restrict__ d_varNew, double * __restrict__ d_K, double * __restrict__ d_varErr,double * __restrict__ d_dFdT ,double * __restrict__ d_Fcn0,
                 const double Hmin, const double Hmax, const double Hstart, const double FacMin, const double FacMax, const double FacRej, const double FacSafe, const double roundoff,
                 // cuda global mem buffers              
                 const double * __restrict__ absTol, const double * __restrict__ relTol,
@@ -679,42 +680,30 @@ void Rosenbrock(double * __restrict__ conc, const double Tstart, const double Te
 {
     int index = blockIdx.x*blockDim.x+threadIdx.x;
 
-    /* Temporary arrays allocated in stack */
-
     /* 
-     *  Optimization NOTE: runs faster on Tesla/Fermi 
-     *  when tempallocated on stack instead of heap.
      *  In theory someone can aggregate accesses together,
      *  however due to algorithm, threads access 
      *  different parts of memory, making it harder to
      *  optimize accesses. 
      *
      */
-    double varNew_stack[NVAR];
-    double var_stack[NSPEC];
-    double varErr_stack[NVAR];
+    double *Ghimj  = &d_Ghimj[index*LU_NONZERO];    
+    double *K      = &d_K[index*NVAR*3];
+    double *varNew = &d_varNew[index*NVAR];
+    double *Fcn0   = &d_Fcn0[index*NVAR];
+    double *dFdT   = &d_dFdT[index*NVAR];
+    double *jac0   = &d_jac0[index*LU_NONZERO];
+    double *varErr = &d_varErr[index*NVAR];
+
+    /* Temporary arrays allocated in stack */
+    double var_stack[NVAR];
     double fix_stack[NFIX];
-    double Fcn0_stack[NVAR];
-    double jac0_stack[LU_NONZERO];
-    double dFdT_stack[NVAR];
-    double Ghimj_stack[LU_NONZERO];
-    double K_stack[6*NVAR];
-
-
-    /* Allocated in Global mem */
     double rconst_stack[NREACT];
-
-    /* Allocated in stack */
-    double *Ghimj  = Ghimj_stack;
-    double *K      = K_stack;
-    double *varNew = varNew_stack;
-    double *Fcn0   = Fcn0_stack;
-    double *dFdT   = dFdT_stack;
-    double *jac0   = jac0_stack;
-    double *varErr = varErr_stack;
     double *var    = var_stack;
     double *fix    = fix_stack;  
     double *rconst = rconst_stack;
+
+  
 
     if (index < VL_GLO)
     {
@@ -941,7 +930,7 @@ __global__ void reduce_istatus_2(int4 *tmp_out_1, int4 *tmp_out_2, int *out)
 
 /* Assuming different processes */
 enum { TRUE=1, FALSE=0 } ;
-double *d_conc, *d_temp, *d_press, *d_cair, *d_khet_st, *d_khet_tr, *d_jx;
+double *d_conc, *d_temp, *d_press, *d_cair, *d_khet_st, *d_khet_tr, *d_jx, *d_jac0, *d_Ghimj, *d_varNew, *d_K, *d_varErr, *d_dFdT, *d_Fcn0;
 int initialized = FALSE;
 
 /* Device pointers pointing to GPU */
@@ -959,13 +948,13 @@ __host__ void init_first_time(int pe, int VL_GLO, int size_khet_st, int size_khe
     gpuErrchk( cudaSetDevice(device) );
 
     printf("PE[%d]: selected %d of total %d\n",pe,device,deviceCount);
-    cudaDeviceSetCacheConfig(cudaFuncCachePreferL1); 
+    cudaDeviceSetCacheConfig(cudaFuncCachePreferL1);
 
     gpuErrchk( cudaMalloc ((void **) &d_conc   , sizeof(double)*VL_GLO*(NSPEC))        );
     gpuErrchk( cudaMalloc ((void **) &d_khet_st, sizeof(double)*VL_GLO*size_khet_st) );
     gpuErrchk( cudaMalloc ((void **) &d_khet_tr, sizeof(double)*VL_GLO*size_khet_tr) );
     gpuErrchk( cudaMalloc ((void **) &d_jx     , sizeof(double)*VL_GLO*size_jx)      );
-   
+
     gpuErrchk( cudaMalloc ((void **) &d_rstatus    , sizeof(double)*VL_GLO*2)          );
     gpuErrchk( cudaMalloc ((void **) &d_istatus    , sizeof(int)*VL_GLO*8)             );
     gpuErrchk( cudaMalloc ((void **) &d_absTol     , sizeof(double)*NVAR)              );
@@ -976,13 +965,22 @@ __host__ void init_first_time(int pe, int VL_GLO, int size_khet_st, int size_khe
     gpuErrchk( cudaMalloc ((void **) &press_gpu     , sizeof(double)*VL_GLO)              );
     gpuErrchk( cudaMalloc ((void **) &cair_gpu     , sizeof(double)*VL_GLO)              );
 
-    /* Allocate arrays on device for reduce_foo */
+    /* Allocate arrays on device for reducing metrics */
     gpuErrchk( cudaMalloc ((void **) &d_istatus_rd  , sizeof(int)*8));
     gpuErrchk( cudaMalloc ((void **) &d_tmp_out_1   , sizeof(int4)*64));
     gpuErrchk( cudaMalloc ((void **) &d_tmp_out_2   , sizeof(int4)*64));
     gpuErrchk( cudaMalloc ((void **) &d_xNacc   , sizeof(int)*VL_GLO));
     gpuErrchk( cudaMalloc ((void **) &d_xNrej   , sizeof(int)*VL_GLO));
-    
+
+    /* Allocate arrays for solvers on device global memory to reduce the stack usage */
+    gpuErrchk( cudaMalloc ((void **) &d_jac0, sizeof(double)*VL_GLO*LU_NONZERO)   );
+    gpuErrchk( cudaMalloc ((void **) &d_Ghimj, sizeof(double)*VL_GLO*LU_NONZERO)   );
+    gpuErrchk( cudaMalloc ((void **) &d_varNew, sizeof(double)*VL_GLO*NVAR)       );
+    gpuErrchk( cudaMalloc ((void **) &d_Fcn0, sizeof(double)*VL_GLO*NVAR)       );
+    gpuErrchk( cudaMalloc ((void **) &d_dFdT, sizeof(double)*VL_GLO*NVAR)       );
+
+    gpuErrchk( cudaMalloc ((void **) &d_K, sizeof(double)*VL_GLO*NVAR*3)       );  // TODO: Change size according to solver steps
+    gpuErrchk( cudaMalloc ((void **) &d_varErr, sizeof(double)*VL_GLO*NVAR)       );
 
     initialized = TRUE;
 }
@@ -1003,14 +1001,14 @@ extern "C" void finalize_cuda(){
     gpuErrchk( cudaFree(d_istatus     ) );
     gpuErrchk( cudaFree(d_absTol      ) );
     gpuErrchk( cudaFree(d_relTol      ) );
-    gpuErrchk( cudaFree(d_istatus_rd  ) ); 
-    gpuErrchk( cudaFree(d_tmp_out_1   ) ); 
-    gpuErrchk( cudaFree(d_tmp_out_2   ) ); 
-    gpuErrchk( cudaFree(d_xNacc       ) ); 
-    gpuErrchk( cudaFree(d_xNrej       ) ); 
-    gpuErrchk( cudaFree(temp_gpu      ) ); 
-    gpuErrchk( cudaFree(press_gpu     ) ); 
-    gpuErrchk( cudaFree(cair_gpu      ) ); 
+    gpuErrchk( cudaFree(d_istatus_rd  ) );
+    gpuErrchk( cudaFree(d_tmp_out_1   ) );
+    gpuErrchk( cudaFree(d_tmp_out_2   ) );
+    gpuErrchk( cudaFree(d_xNacc       ) );
+    gpuErrchk( cudaFree(d_xNrej       ) );
+    gpuErrchk( cudaFree(temp_gpu      ) );
+    gpuErrchk( cudaFree(press_gpu     ) );
+    gpuErrchk( cudaFree(cair_gpu      ) );
 }
 
 
