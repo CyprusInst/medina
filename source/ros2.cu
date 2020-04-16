@@ -164,9 +164,8 @@ __device__  static  int ros_Integrator_ros2(double * __restrict__ var, const dou
 
 __global__ 
 void Rosenbrock_ros2(double * __restrict__ conc, const double Tstart, const double Tend, double * __restrict__ rstatus, int * __restrict__ istatus,
-                // values calculated from icntrl and rcntrl at host
-                const int autonomous, const int vectorTol, const int UplimTol,  const int Max_no_steps,
-                double * __restrict__ jac0, double * __restrict__ Ghimj, double * __restrict__ varNew, double * __restrict__ K, double * __restrict__ varErr,double * __restrict__ dFdT ,double * __restrict__ Fcn0,
+                const int autonomous, const int vectorTol, const int UplimTol, const int Max_no_steps,
+                double * __restrict__ d_jac0, double * __restrict__ d_Ghimj, double * __restrict__ d_varNew, double * __restrict__ d_K, double * __restrict__ d_varErr,double * __restrict__ d_dFdT ,double * __restrict__ d_Fcn0,
                 const double Hmin, const double Hmax, const double Hstart, const double FacMin, const double FacMax, const double FacRej, const double FacSafe, const double roundoff,
                 //  cuda global mem buffers              
                 const double * __restrict__ absTol, const double * __restrict__ relTol,
@@ -182,21 +181,19 @@ void Rosenbrock_ros2(double * __restrict__ conc, const double Tstart, const doub
 
 
     /* 
-     *  Optimization NOTE: runs faster on Tesla/Fermi 
-     *  when tempallocated on stack instead of heap.
      *  In theory someone can aggregate accesses together,
      *  however due to algorithm, threads access 
      *  different parts of memory, making it harder to
      *  optimize accesses. 
      *
      */
-    Ghimj  = &Ghimj[index*LU_NONZERO];    
-    K      = &K[index*NVAR*2];
-    varNew = &varNew[index*NVAR];
-    Fcn0   = &Fcn0[index*NVAR];
-    dFdT   = &dFdT[index*NVAR];
-    jac0   = &jac0[index*LU_NONZERO];
-    varErr = &varErr[index*NVAR];
+    double *Ghimj  = &d_Ghimj[index*LU_NONZERO];    
+    double *K      = &d_K[index*NVAR*3];
+    double *varNew = &d_varNew[index*NVAR];
+    double *Fcn0   = &d_Fcn0[index*NVAR];
+    double *dFdT   = &d_dFdT[index*NVAR];
+    double *jac0   = &d_jac0[index*LU_NONZERO];
+    double *varErr = &d_varErr[index*NVAR];
 
     /* Temporary arrays allocated in stack */
     double var_stack[NVAR];

@@ -170,7 +170,7 @@ def fix_power_op(source):
                         for i in reversed(left[:-4]):
                             if i not in string.digits:
                                 if pos == -4:
-                                    print("ERROR 1 in \"parcer\" \n")
+                                    print("ERROR 1 in \"parser\" \n")
                                 break
                             pos = pos -1
                         base = left[pos:-3]
@@ -204,7 +204,7 @@ def fix_power_op(source):
                         for i in reversed(left[:-1]):
                             if i not in string.digits:
                                 if pos == -1:
-                                    print("ERROR 2 in \"parcer\" \n")
+                                    print("ERROR 2 in \"parser\" \n")
                                 break
                             pos = pos - 1
                         base = left[pos:]
