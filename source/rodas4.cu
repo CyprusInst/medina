@@ -295,7 +295,7 @@ void Rosenbrock_rodas4(double * __restrict__ conc, const double Tstart, const do
     double *varErr = &d_varErr[index*NVAR];
 
     /* Temporary arrays allocated in stack */
-    double var_stack[NVAR];
+    double var_stack[NSPEC];
     double fix_stack[NFIX];
     double rconst_stack[NREACT];
     double *var    = var_stack;
