@@ -979,7 +979,7 @@ __host__ void init_first_time(int pe, int VL_GLO, int size_khet_st, int size_khe
     gpuErrchk( cudaMalloc ((void **) &d_Fcn0, sizeof(double)*VL_GLO*NVAR)       );
     gpuErrchk( cudaMalloc ((void **) &d_dFdT, sizeof(double)*VL_GLO*NVAR)       );
 
-    gpuErrchk( cudaMalloc ((void **) &d_K, sizeof(double)*VL_GLO*NVAR*3)       );  // TODO: Change size according to solver steps
+    gpuErrchk( cudaMalloc ((void **) &d_K, sizeof(double)*VL_GLO*NVAR*6)       );  // TODO: Change size according to solver steps
     gpuErrchk( cudaMalloc ((void **) &d_varErr, sizeof(double)*VL_GLO*NVAR)       );
 
     initialized = TRUE;
