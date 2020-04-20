@@ -20,7 +20,7 @@ echo "=================> STEP 2: Running script. <=================="
 (
 set -x
 cd messy/util
-python ./f2c_alpha.py -r 1 -g 1 > /dev/null
+python2 ./f2c_alpha.py -r 1 -g 1 > /dev/null
 )
 
 status=$?
@@ -34,7 +34,7 @@ echo "==========> STEP 3: Compiling the output files. <============="
 (
 set -x
 cd messy/smcl
-nvcc -O0 -c messy_mecca_kpp_acc.cu  2>&1  | grep error
+nvcc -DDEBUG -O0 -c messy_mecca_kpp_acc.cu  2>&1  | grep error
 )
 
 status=$?
@@ -50,7 +50,7 @@ echo "============> STEP 4: Running the application. <=============="
 set -x
 cat ./raw/main.c >> ./messy/smcl/messy_mecca_kpp_acc.cu
 cd messy/smcl
-nvcc -O1  messy_mecca_kpp_acc.cu --keep --keep-dir ./temp_files  2>&1  | grep error
+nvcc -O1  -DDEBUG messy_mecca_kpp_acc.cu --keep --keep-dir ./temp_files  2>&1  | grep error
 ./a.out | grep -v "Results"
 cuda-memcheck ./a.out | grep -v "Results"
 ./a.out | grep "Results" | sed -e "s/Results://g" > res_gpu.txt
@@ -87,22 +87,22 @@ echo "==========> STEP 6: Comparing the output results. <==========="
 
 (
 set -x
-python compare.py ./messy/fortran/res_fortran.txt messy/smcl/res_gpu.txt | grep "Element\|<<<<<<===== WARNING"
+python2 compare.py ./messy/fortran/res_fortran.txt messy/smcl/res_gpu.txt | grep "Element\|<<<<<<===== WARNING"
 )
 
 echo "===========> STEP 7: Cleaning up the directories. <==========="
 
 
-(
-set -x
-cd messy/smcl/
-rm ./*
-rm ./temp_files/* 
-cd ../fortran/
-rm ./*
-cd ../util/
-rm -rf ./*
-)
+#(
+#set -x
+#cd messy/smcl/
+#rm ./*
+#rm ./temp_files/* 
+#cd ../fortran/
+#rm ./*
+#cd ../util/
+#rm -rf ./*
+#)
 
 
 

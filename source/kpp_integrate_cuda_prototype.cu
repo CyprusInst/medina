@@ -1,9 +1,9 @@
 /*************************************************************
- * 
+ *
  *    kpp_integrate_cuda_prototype.cu
  *    Prototype file for kpp CUDA kernel
  *
- *    Copyright 2016 The Cyprus Institute 
+ *    Copyright 2016 The Cyprus Institute
  *
  *    Developers: Michail Alvanos - m.alvanos@cyi.ac.cy
  *                Giannis Ashiotis
@@ -19,7 +19,7 @@
 
 #define BLOCKSIZE 64
 
-#define MAX_VL_GLO 12288 /* elements that will pass in each call */
+//#define MAX_VL_GLO 12288 /* elements that will pass in each call */
 
 #define REDUCTION_SIZE_1 64
 #define REDUCTION_SIZE_2 32
@@ -62,13 +62,13 @@
 #define khet_st(i,j) khet_st[(j)*VL_GLO+(i)]
 #define khet_tr(i,j) khet_tr[(j)*VL_GLO+(i)]
 #define jx(i,j)      jx[j*VL_GLO+i]
-#define istatus(i,j) istatus[(j)*(VL_GLO)+(i)]   
+#define istatus(i,j) istatus[(j)*(VL_GLO)+(i)]
 #define rstatus(i,j) rstatus[(j)*(VL_GLO)+(i)]
 
 
 #define ROUND128(X)  (X + (128 - 1)) & ~(128 - 1)
 
-#define rconst(i,j)  rconst[(j)*(VL_GLO)+(i)]
+#define rconst(i,j)  rconst[(j)]
 
 
 /* Temporary arrays allocated in stack */
@@ -83,12 +83,12 @@
 #define dFdT(i,j)   dFdT[(j)]
 #define varErr(i,j) varErr[(j)]
 #define K(i,j,k) K[(j)*(NVAR)+(k)]
-#define jac0(i,j)    jac0[(j)]    
-#define Ghimj(i,j)   Ghimj[(j)]   
+#define jac0(i,j)    jac0[(j)]
+#define Ghimj(i,j)   Ghimj[(j)]
 
 
 /* Enable debug flags for GPU */
-//#define DEBUG
+#define DEBUG
 
 #ifdef DEBUG
 #define GPU_DEBUG()\
@@ -96,18 +96,6 @@
     gpuErrchk( cudaDeviceSynchronize() ); 
 
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
-
-
-
-#if __CUDA_ARCH__ >= 350
-#define _LDG(x)  (__ldg( &(x) ) )
-#else
-#define _LDG(x)  (x)
-#endif
-
-// The ros kernel only needs to read the data, 
-// so store them in the read only cache if possible
-#define rconst(i,j) _LDG( rconst[(j)*(VL_GLO)+(i)] )
 
 static inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
 {
@@ -152,7 +140,10 @@ __device__ inline void prefetch_ll2(const void *p) {
 
 __device__ void  update_rconst(const double * __restrict__ var,
 			       const double * __restrict__ khet_st, const double * __restrict__ khet_tr,
-			       const double * __restrict__ jx, 
+			       const double * __restrict__ jx, double * __restrict__ rconst,
+ 			       const double * __restrict__ temp_gpu,
+ 			       const double * __restrict__ press_gpu,
+ 			       const double * __restrict__ cair_gpu,
 			       const int VL_GLO);
 
 /* This runs on CPU */
@@ -197,8 +188,8 @@ __device__  static double alpha_AN(const int n, const int ro2type, const double 
   */
     double m = 1.;
     Y0_298K     = alpha*exp(beta*n);
-    Y0_298K_tp  = Y0_298K *cair *pow((temp/298),(- m0));
-    Yinf_298K_t = Yinf_298K * pow((temp/298),(- minf));
+    Y0_298K_tp  = Y0_298K *cair *pow((temp/298.),(- m0));
+    Yinf_298K_t = Yinf_298K * pow((temp/298.),(- minf));
     zeta        = 1/(1+ pow(log10(Y0_298K_tp/Yinf_298K_t),2));
     k_ratio     = (Y0_298K_tp/(1+ Y0_298K_tp/Yinf_298K_t))*pow(F,zeta);
     alpha_a    = k_ratio/(1+ k_ratio) *m;
@@ -216,12 +207,15 @@ if (abic == 1) { abf = 0.24; }// derived from the ratio of AN- yield for toluene
                               // 200 torr, and this SAR for linear alkyl RO2 with 9 heavy atoms, 23.3%
 
     Y0_298K     = alpha*exp(beta*n);
-    Y0_298K_tp  = Y0_298K *cair *pow((temp/298),(- m0));
-    Yinf_298K_t = Yinf_298K * pow((temp/298),(- minf));
+    Y0_298K_tp  = Y0_298K *cair *pow((temp/298.),(- m0));
+    Yinf_298K_t = Yinf_298K * pow((temp/298.),(- minf));
     zeta        = 1/(1+ pow(log10(Y0_298K_tp/Yinf_298K_t),2));
     k_ratio     = (Y0_298K_tp/(1+ Y0_298K_tp/Yinf_298K_t))*pow(F,zeta);
     alpha_a    = k_ratio/(1+ k_ratio) *m*bcf*gcf*abf;
     return alpha_a;
+}
+__device__  static double k_RO2_HO2(const double temp, const int nC){
+    return 2.91e-13*exp(1300./temp)*(1.-exp(-0.245*nC)); // ref1630
 }
 __device__ double ros_ErrorNorm(double * __restrict__ var, double * __restrict__ varNew, double * __restrict__ varErr, 
                                 const double * __restrict__ absTol, const double * __restrict__ relTol,
@@ -600,9 +594,10 @@ __device__ __constant__  ros_t ros[5] = {
 
 
 
-__device__ double rconst_local[MAX_VL_GLO*NREACT];
+//__device__ double rconst_local[MAX_VL_GLO*NREACT];
 
 /* Initialize rconst local  */
+//__device__ double * rconst_local;
 
 
 __device__ double k_3rd(double temp, double cair, double k0_300K, double n, double kinf_300K, double m, double fc)
@@ -657,9 +652,9 @@ __device__ double k_3rd_iupac(double temp, double cair, double k0_300K, double n
 
 
 
-__device__  double temp_gpu[MAX_VL_GLO];
-__device__  double press_gpu[MAX_VL_GLO];
-__device__  double cair_gpu[MAX_VL_GLO];
+double * temp_gpu;
+double * press_gpu;
+double * cair_gpu;
 
 
 =#=#=#=#=#=#=#=#=#=#=update_rconst=#=#=#=#=#=#=#=#=#=#=
@@ -669,52 +664,46 @@ __global__
 void Rosenbrock(double * __restrict__ conc, const double Tstart, const double Tend, double * __restrict__ rstatus, int * __restrict__ istatus,
                 // values calculated from icntrl and rcntrl at host
                 const int autonomous, const int vectorTol, const int UplimTol, const int method, const int Max_no_steps,
+                double * __restrict__ d_jac0, double * __restrict__ d_Ghimj, double * __restrict__ d_varNew, double * __restrict__ d_K, double * __restrict__ d_varErr,double * __restrict__ d_dFdT ,double * __restrict__ d_Fcn0,
                 const double Hmin, const double Hmax, const double Hstart, const double FacMin, const double FacMax, const double FacRej, const double FacSafe, const double roundoff,
                 // cuda global mem buffers              
                 const double * __restrict__ absTol, const double * __restrict__ relTol,
                 // for update_rconst
     	        const double * __restrict__ khet_st, const double * __restrict__ khet_tr,
 		const double * __restrict__ jx,
+                // global input
+                const double * __restrict__ temp_gpu,
+                const double * __restrict__ press_gpu,
+                const double * __restrict__ cair_gpu,
                 // extra
                 const int VL_GLO)
 {
     int index = blockIdx.x*blockDim.x+threadIdx.x;
 
-    /* Temporary arrays allocated in stack */
-
     /* 
-     *  Optimization NOTE: runs faster on Tesla/Fermi 
-     *  when tempallocated on stack instead of heap.
      *  In theory someone can aggregate accesses together,
      *  however due to algorithm, threads access 
      *  different parts of memory, making it harder to
      *  optimize accesses. 
      *
      */
-    double varNew_stack[NVAR];
-    double var_stack[NSPEC];
-    double varErr_stack[NVAR];
+    double *Ghimj  = &d_Ghimj[index*LU_NONZERO];    
+    double *K      = &d_K[index*NVAR*3];
+    double *varNew = &d_varNew[index*NVAR];
+    double *Fcn0   = &d_Fcn0[index*NVAR];
+    double *dFdT   = &d_dFdT[index*NVAR];
+    double *jac0   = &d_jac0[index*LU_NONZERO];
+    double *varErr = &d_varErr[index*NVAR];
+
+    /* Temporary arrays allocated in stack */
+    double var_stack[NVAR];
     double fix_stack[NFIX];
-    double Fcn0_stack[NVAR];
-    double jac0_stack[LU_NONZERO];
-    double dFdT_stack[NVAR];
-    double Ghimj_stack[LU_NONZERO*3];
-    double K_stack[6*NVAR];
-
-
-    /* Allocated in Global mem */
-    double *rconst = rconst_local;
-
-    /* Allocated in stack */
-    double *Ghimj  = Ghimj_stack;
-    double *K      = K_stack;
-    double *varNew = varNew_stack;
-    double *Fcn0   = Fcn0_stack;
-    double *dFdT   = dFdT_stack;
-    double *jac0   = jac0_stack;
-    double *varErr = varErr_stack;
+    double rconst_stack[NREACT];
     double *var    = var_stack;
     double *fix    = fix_stack;  
+    double *rconst = rconst_stack;
+
+  
 
     if (index < VL_GLO)
     {
@@ -761,7 +750,7 @@ void Rosenbrock(double * __restrict__ conc, const double Tstart, const double Te
             fix(index,i) = conc(index,NVAR+i);
 
 
-        update_rconst(var, khet_st, khet_tr, jx, VL_GLO); 
+        update_rconst(var, khet_st, khet_tr, jx, rconst, temp_gpu, press_gpu, cair_gpu, VL_GLO); 
 
         ros_Integrator(var, fix, Tstart, Tend, Texit,
                 //  Rosenbrock method coefficients
@@ -941,7 +930,7 @@ __global__ void reduce_istatus_2(int4 *tmp_out_1, int4 *tmp_out_2, int *out)
 
 /* Assuming different processes */
 enum { TRUE=1, FALSE=0 } ;
-double *d_conc, *d_temp, *d_press, *d_cair, *d_khet_st, *d_khet_tr, *d_jx;
+double *d_conc, *d_temp, *d_press, *d_cair, *d_khet_st, *d_khet_tr, *d_jx, *d_jac0, *d_Ghimj, *d_varNew, *d_K, *d_varErr, *d_dFdT, *d_Fcn0;
 int initialized = FALSE;
 
 /* Device pointers pointing to GPU */
@@ -959,25 +948,39 @@ __host__ void init_first_time(int pe, int VL_GLO, int size_khet_st, int size_khe
     gpuErrchk( cudaSetDevice(device) );
 
     printf("PE[%d]: selected %d of total %d\n",pe,device,deviceCount);
-    cudaDeviceSetCacheConfig(cudaFuncCachePreferL1); 
+    cudaDeviceSetCacheConfig(cudaFuncCachePreferL1);
 
     gpuErrchk( cudaMalloc ((void **) &d_conc   , sizeof(double)*VL_GLO*(NSPEC))        );
     gpuErrchk( cudaMalloc ((void **) &d_khet_st, sizeof(double)*VL_GLO*size_khet_st) );
     gpuErrchk( cudaMalloc ((void **) &d_khet_tr, sizeof(double)*VL_GLO*size_khet_tr) );
     gpuErrchk( cudaMalloc ((void **) &d_jx     , sizeof(double)*VL_GLO*size_jx)      );
-   
+
     gpuErrchk( cudaMalloc ((void **) &d_rstatus    , sizeof(double)*VL_GLO*2)          );
     gpuErrchk( cudaMalloc ((void **) &d_istatus    , sizeof(int)*VL_GLO*8)             );
     gpuErrchk( cudaMalloc ((void **) &d_absTol     , sizeof(double)*NVAR)              );
     gpuErrchk( cudaMalloc ((void **) &d_relTol     , sizeof(double)*NVAR)              );
 
-    /* Allocate arrays on device for reduce_foo */
+    /* Allocate input arrays */
+    gpuErrchk( cudaMalloc ((void **) &temp_gpu     , sizeof(double)*VL_GLO)              );
+    gpuErrchk( cudaMalloc ((void **) &press_gpu     , sizeof(double)*VL_GLO)              );
+    gpuErrchk( cudaMalloc ((void **) &cair_gpu     , sizeof(double)*VL_GLO)              );
+
+    /* Allocate arrays on device for reducing metrics */
     gpuErrchk( cudaMalloc ((void **) &d_istatus_rd  , sizeof(int)*8));
     gpuErrchk( cudaMalloc ((void **) &d_tmp_out_1   , sizeof(int4)*64));
     gpuErrchk( cudaMalloc ((void **) &d_tmp_out_2   , sizeof(int4)*64));
     gpuErrchk( cudaMalloc ((void **) &d_xNacc   , sizeof(int)*VL_GLO));
     gpuErrchk( cudaMalloc ((void **) &d_xNrej   , sizeof(int)*VL_GLO));
-    
+
+    /* Allocate arrays for solvers on device global memory to reduce the stack usage */
+    gpuErrchk( cudaMalloc ((void **) &d_jac0, sizeof(double)*VL_GLO*LU_NONZERO)   );
+    gpuErrchk( cudaMalloc ((void **) &d_Ghimj, sizeof(double)*VL_GLO*LU_NONZERO)   );
+    gpuErrchk( cudaMalloc ((void **) &d_varNew, sizeof(double)*VL_GLO*NVAR)       );
+    gpuErrchk( cudaMalloc ((void **) &d_Fcn0, sizeof(double)*VL_GLO*NVAR)       );
+    gpuErrchk( cudaMalloc ((void **) &d_dFdT, sizeof(double)*VL_GLO*NVAR)       );
+
+    gpuErrchk( cudaMalloc ((void **) &d_K, sizeof(double)*VL_GLO*NVAR*6)       );  // TODO: Change size according to solver steps
+    gpuErrchk( cudaMalloc ((void **) &d_varErr, sizeof(double)*VL_GLO*NVAR)       );
 
     initialized = TRUE;
 }
@@ -998,11 +1001,14 @@ extern "C" void finalize_cuda(){
     gpuErrchk( cudaFree(d_istatus     ) );
     gpuErrchk( cudaFree(d_absTol      ) );
     gpuErrchk( cudaFree(d_relTol      ) );
-    gpuErrchk( cudaFree(d_istatus_rd  ) ); 
-    gpuErrchk( cudaFree(d_tmp_out_1   ) ); 
-    gpuErrchk( cudaFree(d_tmp_out_2   ) ); 
-    gpuErrchk( cudaFree(d_xNacc       ) ); 
-    gpuErrchk( cudaFree(d_xNrej       ) ); 
+    gpuErrchk( cudaFree(d_istatus_rd  ) );
+    gpuErrchk( cudaFree(d_tmp_out_1   ) );
+    gpuErrchk( cudaFree(d_tmp_out_2   ) );
+    gpuErrchk( cudaFree(d_xNacc       ) );
+    gpuErrchk( cudaFree(d_xNrej       ) );
+    gpuErrchk( cudaFree(temp_gpu      ) );
+    gpuErrchk( cudaFree(press_gpu     ) );
+    gpuErrchk( cudaFree(cair_gpu      ) );
 }
 
 
@@ -1077,9 +1083,9 @@ extern "C" void kpp_integrate_cuda_( int *pe_p, int *sizes, double *time_step_le
     /* Copy data from host memory to device memory */
     gpuErrchk( cudaMemcpy(d_conc   , conc   	, sizeof(double)*VL_GLO*NSPEC        , cudaMemcpyHostToDevice) );
 
-    gpuErrchk( cudaMemcpyToSymbol(temp_gpu   , temp   	, sizeof(double)*VL_GLO  ) );
-    gpuErrchk( cudaMemcpyToSymbol(press_gpu  , press  	, sizeof(double)*VL_GLO  ) );
-    gpuErrchk( cudaMemcpyToSymbol(cair_gpu   , cair   	, sizeof(double)*VL_GLO  ) );
+    gpuErrchk( cudaMemcpy(temp_gpu   , temp   	, sizeof(double)*VL_GLO  , cudaMemcpyHostToDevice) );
+    gpuErrchk( cudaMemcpy(press_gpu  , press  	, sizeof(double)*VL_GLO  , cudaMemcpyHostToDevice) );
+    gpuErrchk( cudaMemcpy(cair_gpu   , cair   	, sizeof(double)*VL_GLO  , cudaMemcpyHostToDevice) );
 
     gpuErrchk( cudaMemcpy(d_khet_st, khet_st	, sizeof(double)*VL_GLO*size_khet_st , cudaMemcpyHostToDevice) );
     gpuErrchk( cudaMemcpy(d_khet_tr, khet_tr	, sizeof(double)*VL_GLO*size_khet_tr , cudaMemcpyHostToDevice) );
