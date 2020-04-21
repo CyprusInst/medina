@@ -320,8 +320,15 @@ void Rosenbrock_rodas4(double * __restrict__ conc, const double Tstart, const do
         Nsng = 0;
 
 
-
-        for (int i=0; i<NSPEC; i++)
+        /* Copy data from global memory to temporary array */
+        /*
+         * Optimization note: if we ever have enough constant
+         * memory, we could use it for storing the data.
+         * In current architectures if we use constant memory
+         * only a few threads will be able to run on the fly.
+         *
+         */
+        for (int i=0; i<NVAR; i++)
             var(index,i) = conc(index,i);
 
         for (int i=0; i<NFIX; i++)
