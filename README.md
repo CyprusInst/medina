@@ -1,7 +1,7 @@
 # MECCA - KPP Fortran to CUDA source-to-source pre-processor
 
-*Disclaimer: This software is in alpha-test mode, 
-equivalent to the MESSy red traffic light status.
+*Disclaimer: This software is in beta-test mode, 
+equivalent to the MESSy yellow traffic light status.
 No unexpected behaviour was observed under testing, and users are 
 invited to test with their model setup. However, no express guarantee
 is provided for production simulations. 
@@ -17,7 +17,7 @@ Hardware: CUDA compatible GPU (Fermi, Kepler, Pascal, Volta, or later).
 
 To enable using the GPUs the file: 
 `f2c_alpha.py`  and folder `source` 
-have to be available in the messy/util directory. 
+have to be available in the messy/util/medina directory. 
 No additional changes are required. 
 
 To install the latest version from github, go to the messy/util directory
@@ -31,7 +31,7 @@ in the configuration file (under `config/mh-XXXX`).
 
 ## 3. Running the MECCA Fortran to CUDA source-to-source pre-processor:
 
-You have to enter the ./messy/util directory to execute the
+You have to enter the ./messy/util/medina directory to execute the
 preprocessor, by running "`python f2c_alpha.py`". The preprocessor expects
 the following files to be in place:
 

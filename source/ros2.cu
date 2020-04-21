@@ -227,7 +227,7 @@ void Rosenbrock_ros2(double * __restrict__ conc, const double Tstart, const doub
          * only a few threads will be able to run on the fly.
          *
          */
-        for (int i=0; i<NSPEC; i++)
+        for (int i=0; i<NVAR; i++)
             var(index,i) = conc(index,i);
 
         for (int i=0; i<NFIX; i++)
