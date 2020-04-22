@@ -19,7 +19,7 @@ import re
 import subprocess, string
 import argparse
 
-smcl = "../../smcl/"
+smcl = "../smcl/"
 
 def remove_comments(source):
     print "Removing comments..."
