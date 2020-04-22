@@ -1533,8 +1533,11 @@ inject_rconst = False
 parser = argparse.ArgumentParser(description='MEDINA: FORTRAN to CUDA KPP for EMAC Preprocessor.')
 parser.add_argument('-r', '--ros', help='An integer value of the Rosenbrock solver produced [1: all (selected at runtime), 2: Ros2, 3: Ros3, 4: Rodas3, 5: Rodas4]')
 parser.add_argument('-g', '--gpu', help='An integer value of the architecture [1: FERMI, 2: KEPLER, 3: MAXWELL, 4: PASCAL]')
+parser.add_argument('-s', '--smcl', help='smcl folder location, default: "../../smcl/"')
 args = parser.parse_args()
 
+if args.smcl:
+  smcl = args.smcl
 ros = args.ros
 gpu = args.gpu
 
