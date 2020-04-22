@@ -20,7 +20,7 @@ echo "=================> STEP 2: Running script. <=================="
 (
 set -x
 cd messy/util
-python2 ./f2c_alpha.py -r 1 -g 1 > /dev/null
+python2 ./f2c_alpha.py -r 1 -g 1 -s "../smcl/" > /dev/null
 )
 
 status=$?
