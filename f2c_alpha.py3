@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 #########################################################################################################
 #
-# MECCA - KPP Fortran to CUDA praser
+# MECCA - KPP Fortran to CUDA parser
 #
 # Copyright 2016-2020 The Cyprus Institute
 #
@@ -18,6 +18,7 @@ import re
 import subprocess, string
 import argparse
 
+smcl = "../smcl/"
 
 def remove_comments(source):
     print("Removing comments...")
@@ -170,7 +171,7 @@ def fix_power_op(source):
                         for i in reversed(left[:-4]):
                             if i not in string.digits:
                                 if pos == -4:
-                                    print("ERROR 1 in \"parcer\" \n")
+                                    print("ERROR 1 in \"parser\" \n")
                                 break
                             pos = pos -1
                         base = left[pos:-3]
@@ -204,7 +205,7 @@ def fix_power_op(source):
                         for i in reversed(left[:-1]):
                             if i not in string.digits:
                                 if pos == -1:
-                                    print("ERROR 2 in \"parcer\" \n")
+                                    print("ERROR 2 in \"parser\" \n")
                                 break
                             pos = pos - 1
                         base = left[pos:]
@@ -615,7 +616,7 @@ def find_LU_DIAG(file_in, NVAR):
 
     for line_num in range(len(source)):
         if "lu_diag_0" in source[line_num].lower():
-            print("Detected long tables!") 
+            print("Detected long tables!")
             long_tables = True
             the_line = line_num
             break
@@ -680,7 +681,7 @@ def find_LU_CROW(file_in, NVAR):
 
     for line_num in range(len(source)):
         if "lu_crow_0" in source[line_num].lower():
-            print("Detected long tables!") 
+            print("Detected long tables!")
             long_tables = True
             the_line = line_num
             break
@@ -1085,7 +1086,7 @@ pass
 def gen_kpp_integrate_cuda(file_prototype, source_cuda, inject_rconst):
     file_prototype.seek(0)
     lines_prototype = file_prototype.readlines()
-    file_out = open("../smcl/messy_mecca_kpp_acc.cu","w")
+    file_out = open(smcl + "messy_mecca_kpp_acc.cu","w")
     for line in lines_prototype:
         if "=#=#=#=#=#=#=#=#=#=#=" in line:
             chunk_name = line.replace("=#=#=#=#=#=#=#=#=#=#=","").replace("=#=#=#=#=#=#=#=#=#=#=","").strip().lower()
@@ -1198,7 +1199,7 @@ def generate_c2f_interface(file_in):
             else:
                 print("Something went wrong in generate c2f_interface")
                 return
-    file_out = open("../smcl/messy_mecca_kpp.f90","w")
+    file_out = open(smcl + "messy_mecca_kpp.f90","w")
     for i in range(start):
         file_out.write(source[i])
     out = "SUBROUTINE kpp_integrate (time_step_len,Conc,ierrf,xNacc,xNrej,istatus,l_debug,PE) \n\
@@ -1372,7 +1373,7 @@ def add_cuda_compilation(file_specific,file_makefile,arch):
         temp.write(line.encode())
 
     temp.close()
-    os.rename('__temp', '../smcl/Makefile.m')
+    os.rename('__temp', smcl + "Makefile.m")
 
 
 
@@ -1391,14 +1392,14 @@ def get_transformation_flags():
     inject_rconst = False
 
     # Check if kpp created indirect indexing
-    if ('LU_CROW(k+1)' in open("../smcl/messy_mecca_kpp.f90").read()) or ('LU_CROW(k+ 1)' in open("../smcl/messy_mecca_kpp.f90").read()):
+    if ('LU_CROW(k+1)' in open(smcl + "messy_mecca_kpp.f90").read()) or ('LU_CROW(k+ 1)' in open(smcl + "messy_mecca_kpp.f90").read()):
         print("Warning: Can't convert indirect indexing of file.")
         print("--> Change the decomp in the conf file or modify the output file.\n")
         indirect = True
 
 
     # Check if kpp created vector length chemistry
-    if '= C(1:VL,:)' in open("../smcl/messy_mecca_kpp.f90").read():
+    if '= C(1:VL,:)' in open(smcl + "messy_mecca_kpp.f90").read():
         print("Can't convert vectorized version of file.")
         print("--> Change the rosenbrock_vec to reosenbrock_mz in the conf file.\n")
         print("Exiting... \n")
@@ -1407,14 +1408,14 @@ def get_transformation_flags():
 
 
     # Check if kpp created the multiple files version.
-    if ( os.path.isfile("messy_mecca_kpp_global.f90") == True             and
-         os.path.isfile("messy_mecca_kpp_jacobian.f90") == True
+    if ( os.path.isfile(smcl + "messy_mecca_kpp_global.f90") == True             and
+         os.path.isfile(smcl + "messy_mecca_kpp_jacobian.f90") == True
         ):
         print("Multifile version detected!")
         multifile = True
 
     if (multifile == True):
-        file_messy_mecca_kpp = open("messy_mecca_kpp_linearalgebra.f90","r")
+        file_messy_mecca_kpp = open(smcl + "messy_mecca_kpp_linearalgebra.f90","r")
         subroutines = find_subroutines(file_messy_mecca_kpp, ["KppDecomp","KppDecompCmplx"])
         infile = " ".join(subroutines["kppdecomp"])
         if 'LU_ICOL(kk)' in infile:
@@ -1422,13 +1423,13 @@ def get_transformation_flags():
             indirect = True
 
     if (multifile == True):
-        file_messy_mecca_kpp = open("../smcl/messy_mecca_kpp_integrator.f90","r")
+        file_messy_mecca_kpp = open(smcl + "messy_mecca_kpp_integrator.f90","r")
         lines = file_messy_mecca_kpp.readlines()
         infile = " ".join(lines)
         if '!     CALL Update_RCONST()' not in infile:
             inject_rconst = True;
     else:
-        file_messy_mecca_kpp = open("../smcl/messy_mecca_kpp.f90","r")
+        file_messy_mecca_kpp = open(smcl + "messy_mecca_kpp.f90","r")
         lines = file_messy_mecca_kpp.readlines()
         infile = " ".join(lines)
         if '!     CALL Update_RCONST()' not in infile:
@@ -1552,14 +1553,14 @@ print_warning()
 # First check if the files exist
 # In the future, we will check also  the path of the binary
 
-if ( os.path.isfile("../smcl/messy_mecca_kpp.f90") == False             or
-     os.path.isfile("../smcl/messy_cmn_photol_mem.f90") == False        or
-     os.path.isfile("../smcl/messy_main_constants_mem.f90") == False    or
+if ( os.path.isfile(smcl + "messy_mecca_kpp.f90") == False             or
+     os.path.isfile(smcl + "messy_cmn_photol_mem.f90") == False        or
+     os.path.isfile(smcl + "messy_main_constants_mem.f90") == False    or
      os.path.isfile("./source/kpp_integrate_cuda_prototype.cu") == False or
-     os.path.isfile("../smcl/specific.mk") == False or
-     os.path.isfile("../smcl/Makefile.m") == False
+     os.path.isfile(smcl + "specific.mk") == False or
+     os.path.isfile(smcl + "Makefile.m") == False
      ):
-    print("Can't file one or more files. \n")
+    print("Can't find one or more files. \n")
     print("--> Run the script at ./messy/util directory of messy. \n")
     print("Exiting... \n")
     exit(-1)
@@ -1572,19 +1573,19 @@ multifile, vectorize, indirect, inject_rconst = get_transformation_flags()
 ### Backup files
 print("==> Step 0: Backup files.\n")
 
-shutil.copyfile("../smcl/specific.mk", "../smcl/specific.mk.old")
-shutil.copyfile("../smcl/Makefile.m", "../smcl/Makefile.m.old")
-shutil.copyfile("../smcl/messy_mecca_kpp.f90", "../smcl/messy_mecca_kpp.f90.old")
-os.remove("../smcl/messy_mecca_kpp.f90")
+shutil.copyfile(smcl + "specific.mk", smcl + "specific.mk.old")
+shutil.copyfile(smcl + "Makefile.m", smcl + "Makefile.m.old")
+shutil.copyfile(smcl + "messy_mecca_kpp.f90", smcl + "messy_mecca_kpp.f90.old")
+os.remove(smcl + "messy_mecca_kpp.f90")
 
 
 # Open the files
-file_messy_mecca_kpp = open("../smcl/messy_mecca_kpp.f90.old","r")
-file_messy_cmn_photol_mem = open("../smcl/messy_cmn_photol_mem.f90","r")
-file_messy_main_constants_mem = open("../smcl/messy_main_constants_mem.f90","r")
+file_messy_mecca_kpp = open(smcl + "messy_mecca_kpp.f90.old","r")
+file_messy_cmn_photol_mem = open(smcl + "messy_cmn_photol_mem.f90","r")
+file_messy_main_constants_mem = open(smcl + "messy_main_constants_mem.f90","r")
 file_prototype = open("./source/kpp_integrate_cuda_prototype.cu","r")
-file_specific = open("../smcl/specific.mk","a")
-file_makefile = open("../smcl/Makefile.m","r+")
+file_specific = open(smcl + "specific.mk","a")
+file_makefile = open(smcl + "Makefile.m","r+")
 
 
 ###############################################
@@ -1804,7 +1805,7 @@ add_cuda_compilation(file_specific,file_makefile,arch)
 
 ###############################################
 
-print("\n##################################################################\n") 
+print("\n##################################################################\n")
 print("Don't forget to add the '-lcudart' in the linking options during configuration")
 print("For example, it can be added to the SPEC_NETCDF_LIB variable:")
 print("SPEC_NETCDF_LIB = -L$EBROOTNETCDFMINFORTRAN/lib -lnetcdff   -lcudart  -lstdc++")
