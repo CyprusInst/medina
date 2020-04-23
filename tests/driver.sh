@@ -11,16 +11,17 @@ echo "=================> STEP 1: Copying files. <==================="
 (
 set -x
 cp raw/* ./messy/smcl/
-cp ../f2c_alpha.py  ./messy/util/
-cp -r ../source  ./messy/util/
+mkdir -p ./messy/util/medina
+cp ../f2c_alpha.py  ./messy/util/medina/.
+cp -r ../source  ./messy/util/medina/.
 )
 
 echo "=================> STEP 2: Running script. <=================="
 
 (
 set -x
-cd messy/util
-python2 ./f2c_alpha.py -r 1 -g 1 -s "../smcl/" > /dev/null
+cd messy/util/medina
+python2 ./f2c_alpha.py -r 1 -g 1 -s "../../smcl/" > /dev/null
 )
 
 status=$?
@@ -93,16 +94,16 @@ python2 compare.py ./messy/fortran/res_fortran.txt messy/smcl/res_gpu.txt | grep
 echo "===========> STEP 7: Cleaning up the directories. <==========="
 
 
-#(
-#set -x
-#cd messy/smcl/
-#rm ./*
-#rm ./temp_files/* 
-#cd ../fortran/
-#rm ./*
-#cd ../util/
-#rm -rf ./*
-#)
+(
+set -x
+cd messy/smcl/
+rm ./*
+rm ./temp_files/* 
+cd ../fortran/
+rm ./*
+cd ../util/
+rm -rf ./*
+)
 
 
 
