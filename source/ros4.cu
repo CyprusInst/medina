@@ -270,7 +270,7 @@ void Rosenbrock_ros4(double * __restrict__ conc, const double Tstart, const doub
     double *varErr = &d_varErr[index*NVAR];
 
     /* Temporary arrays allocated in stack */
-    double var_stack[NVAR];
+    double var_stack[NSPEC];
     double fix_stack[NFIX];
     double rconst_stack[NREACT];
     double *var    = var_stack;
@@ -301,7 +301,7 @@ void Rosenbrock_ros4(double * __restrict__ conc, const double Tstart, const doub
          * only a few threads will be able to run on the fly.
          *
          */
-        for (int i=0; i<NVAR; i++)
+        for (int i=0; i<NSPEC; i++)
             var(index,i) = conc(index,i);
 
         for (int i=0; i<NFIX; i++)
