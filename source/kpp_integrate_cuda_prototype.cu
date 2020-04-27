@@ -664,7 +664,7 @@ __global__
 void Rosenbrock(double * __restrict__ conc, const double Tstart, const double Tend, double * __restrict__ rstatus, int * __restrict__ istatus,
                 // values calculated from icntrl and rcntrl at host
                 const int autonomous, const int vectorTol, const int UplimTol, const int method, const int Max_no_steps,
-                double * __restrict__ d_jac0, double * __restrict__ d_Ghimj, double * __restrict__ d_varNew, double * __restrict__ d_K, double * __restrict__ d_varErr,double * __restrict__ d_dFdT ,double * __restrict__ d_Fcn0,
+                double * __restrict__ d_jac0, double * __restrict__ d_Ghimj, double * __restrict__ d_varNew, double * __restrict__ d_K, double * __restrict__ d_varErr,double * __restrict__ d_dFdT ,double * __restrict__ d_Fcn0, double * __restrict__ d_var, double * __restrict__ d_fix, double * __restrict__ d_rconst,
                 const double Hmin, const double Hmax, const double Hstart, const double FacMin, const double FacMax, const double FacRej, const double FacSafe, const double roundoff,
                 // cuda global mem buffers              
                 const double * __restrict__ absTol, const double * __restrict__ relTol,
@@ -694,16 +694,11 @@ void Rosenbrock(double * __restrict__ conc, const double Tstart, const double Te
     double *dFdT   = &d_dFdT[index*NVAR];
     double *jac0   = &d_jac0[index*LU_NONZERO];
     double *varErr = &d_varErr[index*NVAR];
+    double *var    = &d_var[index*NSPEC];
+    double *fix    = &d_fix[index*NFIX];
+    double *rconst = &d_rconst[index*NREACT];
 
-    /* Temporary arrays allocated in stack */
-    double var_stack[NSPEC];
-    double fix_stack[NFIX];
-    double rconst_stack[NREACT];
-    double *var    = var_stack;
-    double *fix    = fix_stack;  
-    double *rconst = rconst_stack;
 
-  
 
     if (index < VL_GLO)
     {
@@ -930,7 +925,7 @@ __global__ void reduce_istatus_2(int4 *tmp_out_1, int4 *tmp_out_2, int *out)
 
 /* Assuming different processes */
 enum { TRUE=1, FALSE=0 } ;
-double *d_conc, *d_temp, *d_press, *d_cair, *d_khet_st, *d_khet_tr, *d_jx, *d_jac0, *d_Ghimj, *d_varNew, *d_K, *d_varErr, *d_dFdT, *d_Fcn0;
+double *d_conc, *d_temp, *d_press, *d_cair, *d_khet_st, *d_khet_tr, *d_jx, *d_jac0, *d_Ghimj, *d_varNew, *d_K, *d_varErr, *d_dFdT, *d_Fcn0, *d_var, *d_fix, *d_rconst;
 int initialized = FALSE;
 
 /* Device pointers pointing to GPU */
@@ -981,6 +976,9 @@ __host__ void init_first_time(int pe, int VL_GLO, int size_khet_st, int size_khe
 
     gpuErrchk( cudaMalloc ((void **) &d_K, sizeof(double)*VL_GLO*NVAR*6)       );  // TODO: Change size according to solver steps
     gpuErrchk( cudaMalloc ((void **) &d_varErr, sizeof(double)*VL_GLO*NVAR)       );
+    gpuErrchk( cudaMalloc ((void **) &d_var, sizeof(double)*VL_GLO*NSPEC)       );
+    gpuErrchk( cudaMalloc ((void **) &d_fix, sizeof(double)*VL_GLO*NFIX)       );
+    gpuErrchk( cudaMalloc ((void **) &d_rconst, sizeof(double)*VL_GLO*NREACT)       );
 
     initialized = TRUE;
 }
@@ -1009,6 +1007,18 @@ extern "C" void finalize_cuda(){
     gpuErrchk( cudaFree(temp_gpu      ) );
     gpuErrchk( cudaFree(press_gpu     ) );
     gpuErrchk( cudaFree(cair_gpu      ) );
+
+    gpuErrchk( cudaFree(d_jac0        ) );
+    gpuErrchk( cudaFree(d_Ghimj       ) );
+    gpuErrchk( cudaFree(d_varNew      ) );
+    gpuErrchk( cudaFree(d_Fcn0        ) );
+    gpuErrchk( cudaFree(d_dFdT        ) );
+    gpuErrchk( cudaFree(d_K           ) );
+    gpuErrchk( cudaFree(d_varErr      ) );
+    gpuErrchk( cudaFree(d_var         ) );
+    gpuErrchk( cudaFree(d_fix         ) );
+    gpuErrchk( cudaFree(d_rconst      ) );
+
 }
 
 

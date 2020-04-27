@@ -266,7 +266,7 @@ __device__  static  int ros_Integrator_rodas4(double * __restrict__ var, const d
 __global__ 
 void Rosenbrock_rodas4(double * __restrict__ conc, const double Tstart, const double Tend, double * __restrict__ rstatus, int * __restrict__ istatus,
                 const int autonomous, const int vectorTol, const int UplimTol, const int Max_no_steps,
-                double * __restrict__ d_jac0, double * __restrict__ d_Ghimj, double * __restrict__ d_varNew, double * __restrict__ d_K, double * __restrict__ d_varErr,double * __restrict__ d_dFdT ,double * __restrict__ d_Fcn0,
+                double * __restrict__ d_jac0, double * __restrict__ d_Ghimj, double * __restrict__ d_varNew, double * __restrict__ d_K, double * __restrict__ d_varErr,double * __restrict__ d_dFdT ,double * __restrict__ d_Fcn0, double * __restrict__ d_var, double * __restrict__ d_fix, double * __restrict__ d_rconst,
                 const double Hmin, const double Hmax, const double Hstart, const double FacMin, const double FacMax, const double FacRej, const double FacSafe, const double roundoff,
                 const double * __restrict__ absTol, const double * __restrict__ relTol,
     	        const double * __restrict__ khet_st, const double * __restrict__ khet_tr,
@@ -293,14 +293,9 @@ void Rosenbrock_rodas4(double * __restrict__ conc, const double Tstart, const do
     double *dFdT   = &d_dFdT[index*NVAR];
     double *jac0   = &d_jac0[index*LU_NONZERO];
     double *varErr = &d_varErr[index*NVAR];
-
-    /* Temporary arrays allocated in stack */
-    double var_stack[NSPEC];
-    double fix_stack[NFIX];
-    double rconst_stack[NREACT];
-    double *var    = var_stack;
-    double *fix    = fix_stack;  
-    double *rconst = rconst_stack;
+    double *var    = &d_var[index*NSPEC];
+    double *fix    = &d_fix[index*NFIX];
+    double *rconst = &d_rconst[index*NREACT];
 
     const int method = 5;
 
