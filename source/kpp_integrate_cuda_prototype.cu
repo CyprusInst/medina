@@ -688,7 +688,7 @@ void Rosenbrock(double * __restrict__ conc, const double Tstart, const double Te
      *
      */
     double *Ghimj  = &d_Ghimj[index*LU_NONZERO];    
-    double *K      = &d_K[index*NVAR*3];
+    double *K      = &d_K[index*NVAR*6];
     double *varNew = &d_varNew[index*NVAR];
     double *Fcn0   = &d_Fcn0[index*NVAR];
     double *dFdT   = &d_dFdT[index*NVAR];
