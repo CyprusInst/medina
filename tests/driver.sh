@@ -51,9 +51,10 @@ echo "============> STEP 4: Running the application. <=============="
 set -x
 cat ./raw/main.c >> ./messy/smcl/messy_mecca_kpp_acc.cu
 cd messy/smcl
-nvcc -O1  -DDEBUG messy_mecca_kpp_acc.cu --keep --keep-dir ./temp_files  2>&1  | grep error
-./a.out | grep -v "Results"
+nvcc -O1  -DDEBUG -lineinfo messy_mecca_kpp_acc.cu --keep --keep-dir ./temp_files  2>&1  | grep error
 cuda-memcheck ./a.out | grep -v "Results"
+nvcc -O1  messy_mecca_kpp_acc.cu --keep --keep-dir ./temp_files  2>&1  | grep error
+./a.out | grep -v "Results"
 ./a.out | grep "Results" | sed -e "s/Results://g" > res_gpu.txt
 )
 

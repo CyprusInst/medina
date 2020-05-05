@@ -117,7 +117,7 @@ Module messy_mecca_kpp
   !   NONZERO -  Number of nonzero entries in Jacobian
   INTEGER, PARAMETER :: NONZERO = 399 
   !   LU_NONZERO -  Number of nonzero entries in LU factoriz. of Jacobian
-  INTEGER, PARAMETER :: LU_NONZERO = 454 
+  INTEGER, PARAMETER :: LU_NONZERO = 455 
   !   CNVAR -  (NVAR+ 1) Number of elements in compressed row format
   INTEGER, PARAMETER :: CNVAR = 74 
   !   NLOOKAT -  Number of species to look at

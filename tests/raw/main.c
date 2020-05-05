@@ -12,6 +12,7 @@
 #include <sys/time.h>
 
 #define VL_GLO 5760
+#define IPMAX 115
 
 double conc[VL_GLO*NSPEC];
 double temp[VL_GLO];
@@ -145,7 +146,7 @@ int main(int argc, char **argv){
     int ierr;
     int i,j;
 
-    int sizes[4] = {VL_GLO,NSPEC,NSPEC,NREACT}; 
+    int sizes[4] = {VL_GLO,NSPEC,NSPEC,IPMAX}; 
     int icntrl[20] = {0,0,2,0};
 
     double roundoff = 2.220446049250313E-016;
