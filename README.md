@@ -45,6 +45,16 @@ the following files to be in place:
 If any of these files is missing or not configured as in the MESSy release,
 the preprocessor will stop with an error message.
 
+### Command-line options
+
+The following command line options are available to the user
+(and can be used for example to run in batch mode):
+
+* `-r / --ros`  An integer value of the Rosenbrock solver produced [1: all (select at runtime), 2: Ros2, 3: Ros3, 4: Rodas3, 5: Rodas4]
+* `-g / --gpu`  An integer value of the architecture [1: FERMI, 2: KEPLER, 3: MAXWELL, 4: PASCAL]
+* `-s / --smcl` MESSy smcl folder location, default: "../../smcl/"'
+
+
 ## 4. Running EMAC with GPU MECCA and improving performance:
 
 During testing it was found that the runtime parameter `NPROMA` should be set 
