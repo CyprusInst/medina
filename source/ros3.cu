@@ -87,7 +87,7 @@ __device__ static int ros_Integrator_ros3(double * __restrict__ var, const doubl
                         K(index,0,i) += dFdT(index,i)*HG;
 		     }
                 }
-                ros_Solve(Ghimj, K, Nsol, 0, ros_S);
+                ros_Solve(Ghimj, K, Nsol, 0, ros_S, VL_GLO);
             } // Stage
 
             {   // istage = 1
@@ -108,7 +108,7 @@ __device__ static int ros_Integrator_ros3(double * __restrict__ var, const doubl
 		     }
                 }
 		//	   R   ,RW, RW,  R,        R 
-                ros_Solve(Ghimj, K, Nsol, 1, ros_S);
+                ros_Solve(Ghimj, K, Nsol, 1, ros_S, VL_GLO);
             } // Stage
 
             {
@@ -127,7 +127,7 @@ __device__ static int ros_Integrator_ros3(double * __restrict__ var, const doubl
                         K(index,istage,i) += dFdT(index,i)*HG;
 		     }
                 }
-                ros_Solve(Ghimj, K, Nsol, istage, ros_S);
+                ros_Solve(Ghimj, K, Nsol, istage, ros_S, VL_GLO);
             } // Stage
 
             //  ~~~>  Compute the new solution
@@ -179,7 +179,9 @@ __device__ static int ros_Integrator_ros3(double * __restrict__ var, const doubl
 __global__ 
 void Rosenbrock_ros3(double * __restrict__ conc, const double Tstart, const double Tend, double * __restrict__ rstatus, int * __restrict__ istatus,
                 const int autonomous, const int vectorTol, const int UplimTol, const int Max_no_steps,
+#ifdef REDUCE
                 double * __restrict__ d_jac0, double * __restrict__ d_Ghimj, double * __restrict__ d_varNew, double * __restrict__ d_K, double * __restrict__ d_varErr,double * __restrict__ d_dFdT ,double * __restrict__ d_Fcn0, double * __restrict__ d_var, double * __restrict__ d_fix, double * __restrict__ d_rconst,
+#endif
                 const double Hmin, const double Hmax, const double Hstart, const double FacMin, const double FacMax, const double FacRej, const double FacSafe, const double roundoff,
                 const double * __restrict__ absTol, const double * __restrict__ relTol,
     	        const double * __restrict__ khet_st, const double * __restrict__ khet_tr,
@@ -199,16 +201,45 @@ void Rosenbrock_ros3(double * __restrict__ conc, const double Tstart, const doub
      *  optimize accesses. 
      *
      */
-    double *Ghimj  = &d_Ghimj[index*LU_NONZERO];    
-    double *K      = &d_K[index*NVAR*3];
+
+
+#ifdef REDUCE
+    double *Ghimj  = d_Ghimj;    
+    double *K      = d_K;
     double *varNew = &d_varNew[index*NVAR];
     double *Fcn0   = &d_Fcn0[index*NVAR];
     double *dFdT   = &d_dFdT[index*NVAR];
-    double *jac0   = &d_jac0[index*LU_NONZERO];
+    double *jac0   = d_jac0;
     double *varErr = &d_varErr[index*NVAR];
     double *var    = &d_var[index*NSPEC];
     double *fix    = &d_fix[index*NFIX];
     double *rconst = &d_rconst[index*NREACT];
+#else
+    double varNew_stack[NVAR];
+    double varErr_stack[NVAR];
+    double Fcn0_stack[NVAR];
+    double jac0_stack[LU_NONZERO];
+    double dFdT_stack[NVAR];
+    double Ghimj_stack[LU_NONZERO];
+    double K_stack[3*NVAR];
+
+    /* Allocated in stack */
+    double *Ghimj  = Ghimj_stack;
+    double *K      = K_stack;
+    double *varNew = varNew_stack;
+    double *Fcn0   = Fcn0_stack;
+    double *dFdT   = dFdT_stack;
+    double *jac0   = jac0_stack;
+    double *varErr = varErr_stack;
+
+    /* Temporary arrays allocated in stack */
+    double var_stack[NSPEC];
+    double fix_stack[NFIX];
+    double rconst_stack[NREACT];
+    double *var    = var_stack;
+    double *fix    = fix_stack;  
+    double *rconst = rconst_stack;
+#endif
 
     const int method = 2;
 

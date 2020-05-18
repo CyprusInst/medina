@@ -70,21 +70,33 @@
 
 #define rconst(i,j)  rconst[(j)]
 
+#ifdef REDUCE
+
+/* reduced mem variant efficient memory access */
+#define Ghimj(i,j) Ghimj[(j)*(VL_GLO)+(i)]
+#define jac0(i,j) jac0[(j)*(VL_GLO)+(i)]
+#define jcb(i,j) jcb[(j)*(VL_GLO)+(i)]
+#define K(i,j,k) K[(j)*(VL_GLO)*(NVAR)+(k)*(VL_GLO)+(i)]
+
+#else
+
+#define jcb(i,j)     jcb[(j)]
+#define K(i,j,k) K[(j)*(NVAR)+(k)]
+#define jac0(i,j)    jac0[(j)]    
+#define Ghimj(i,j)   Ghimj[(j)]
+
+#endif
+
 
 /* Temporary arrays allocated in stack */
 #define var(i,j)     var[(j)]
 #define fix(i,j)     fix[(j)]
-#define jcb(i,j)     jcb[(j)]
 #define varDot(i,j)  varDot[j]
 #define varNew(i,j) varNew[(j)]
 #define Fcn0(i,j)   Fcn0[(j)]
 #define Fcn(i,j)    Fcn[(j)]
-#define Fcn(i,j)    Fcn[(j)]
 #define dFdT(i,j)   dFdT[(j)]
 #define varErr(i,j) varErr[(j)]
-#define K(i,j,k) K[(j)*(NVAR)+(k)]
-#define jac0(i,j)    jac0[(j)]
-#define Ghimj(i,j)   Ghimj[(j)]
 
 
 /* Enable debug flags for GPU */
@@ -267,15 +279,16 @@ __device__ double ros_ErrorNorm(double * __restrict__ var, double * __restrict__
 
 =#=#=#=#=#=#=#=#=#=#=kppSolve=#=#=#=#=#=#=#=#=#=#=
 
-__device__ void ros_Solve(double * __restrict__ Ghimj, double * __restrict__ K, int &Nsol, const int istage, const int ros_S)
+__device__ void ros_Solve(double * __restrict__ Ghimj, double * __restrict__ K, int &Nsol, const int istage, const int ros_S, int VL_GLO)
 {
 
+    int index = blockIdx.x*blockDim.x+threadIdx.x;
     #pragma unroll 4 
     for (int i=0;i<LU_NONZERO-16;i+=16){
-        prefetch_ll1(&Ghimj[i]);
+        prefetch_ll1(&Ghimj(index,i));
     }
 
-    kppSolve(Ghimj, K, istage, ros_S);
+    kppSolve(Ghimj, K, istage, ros_S, VL_GLO);
     Nsol++;
 }
 
@@ -439,7 +452,7 @@ __device__  static  int ros_Integrator(double * __restrict__ var, const double *
 		     }
                 }
 		//	   R   ,RW, RW,  R,        R 
-                ros_Solve(Ghimj, K, Nsol, istage, ros_S);
+                ros_Solve(Ghimj, K, Nsol, istage, ros_S, VL_GLO);
 
 
             } // Stage
@@ -664,7 +677,9 @@ __global__
 void Rosenbrock(double * __restrict__ conc, const double Tstart, const double Tend, double * __restrict__ rstatus, int * __restrict__ istatus,
                 // values calculated from icntrl and rcntrl at host
                 const int autonomous, const int vectorTol, const int UplimTol, const int method, const int Max_no_steps,
+#ifdef REDUCE
                 double * __restrict__ d_jac0, double * __restrict__ d_Ghimj, double * __restrict__ d_varNew, double * __restrict__ d_K, double * __restrict__ d_varErr,double * __restrict__ d_dFdT ,double * __restrict__ d_Fcn0, double * __restrict__ d_var, double * __restrict__ d_fix, double * __restrict__ d_rconst,
+#endif 
                 const double Hmin, const double Hmax, const double Hstart, const double FacMin, const double FacMax, const double FacRej, const double FacSafe, const double roundoff,
                 // cuda global mem buffers              
                 const double * __restrict__ absTol, const double * __restrict__ relTol,
@@ -687,18 +702,45 @@ void Rosenbrock(double * __restrict__ conc, const double Tstart, const double Te
      *  optimize accesses. 
      *
      */
-    double *Ghimj  = &d_Ghimj[index*LU_NONZERO];    
-    double *K      = &d_K[index*NVAR*6];
+
+#ifdef REDUCE
+    double *Ghimj  = d_Ghimj;    
+    double *K      = d_K;
     double *varNew = &d_varNew[index*NVAR];
     double *Fcn0   = &d_Fcn0[index*NVAR];
     double *dFdT   = &d_dFdT[index*NVAR];
-    double *jac0   = &d_jac0[index*LU_NONZERO];
+    double *jac0   = d_jac0;
     double *varErr = &d_varErr[index*NVAR];
     double *var    = &d_var[index*NSPEC];
     double *fix    = &d_fix[index*NFIX];
     double *rconst = &d_rconst[index*NREACT];
+#else 
+    double varNew_stack[NVAR];
+    double varErr_stack[NVAR];
+    double Fcn0_stack[NVAR];
+    double jac0_stack[LU_NONZERO];
+    double dFdT_stack[NVAR];
+    double Ghimj_stack[LU_NONZERO];
+    double K_stack[6*NVAR];
 
+    /* Allocated in stack */
+    double *Ghimj  = Ghimj_stack;
+    double *K      = K_stack;
+    double *varNew = varNew_stack;
+    double *Fcn0   = Fcn0_stack;
+    double *dFdT   = dFdT_stack;
+    double *jac0   = jac0_stack;
+    double *varErr = varErr_stack;
 
+    /* Temporary arrays allocated in stack */
+    double var_stack[NSPEC];
+    double fix_stack[NFIX];
+    double rconst_stack[NREACT];
+    double *var    = var_stack;
+    double *fix    = fix_stack;  
+    double *rconst = rconst_stack;
+#endif
+  
 
     if (index < VL_GLO)
     {
@@ -925,7 +967,11 @@ __global__ void reduce_istatus_2(int4 *tmp_out_1, int4 *tmp_out_2, int *out)
 
 /* Assuming different processes */
 enum { TRUE=1, FALSE=0 } ;
-double *d_conc, *d_temp, *d_press, *d_cair, *d_khet_st, *d_khet_tr, *d_jx, *d_jac0, *d_Ghimj, *d_varNew, *d_K, *d_varErr, *d_dFdT, *d_Fcn0, *d_var, *d_fix, *d_rconst;
+double *d_conc, *d_temp, *d_press, *d_cair, *d_khet_st, *d_khet_tr, *d_jx; 
+#ifdef REDUCE
+double *d_jac0, *d_Ghimj, *d_varNew, *d_K, *d_varErr, *d_dFdT, *d_Fcn0, *d_var, *d_fix, *d_rconst;
+#endif
+
 int initialized = FALSE;
 
 /* Device pointers pointing to GPU */
@@ -967,6 +1013,7 @@ __host__ void init_first_time(int pe, int VL_GLO, int size_khet_st, int size_khe
     gpuErrchk( cudaMalloc ((void **) &d_xNacc   , sizeof(int)*VL_GLO));
     gpuErrchk( cudaMalloc ((void **) &d_xNrej   , sizeof(int)*VL_GLO));
 
+#ifdef REDUCE
     /* Allocate arrays for solvers on device global memory to reduce the stack usage */
     gpuErrchk( cudaMalloc ((void **) &d_jac0, sizeof(double)*VL_GLO*LU_NONZERO)   );
     gpuErrchk( cudaMalloc ((void **) &d_Ghimj, sizeof(double)*VL_GLO*LU_NONZERO)   );
@@ -979,6 +1026,7 @@ __host__ void init_first_time(int pe, int VL_GLO, int size_khet_st, int size_khe
     gpuErrchk( cudaMalloc ((void **) &d_var, sizeof(double)*VL_GLO*NSPEC)       );
     gpuErrchk( cudaMalloc ((void **) &d_fix, sizeof(double)*VL_GLO*NFIX)       );
     gpuErrchk( cudaMalloc ((void **) &d_rconst, sizeof(double)*VL_GLO*NREACT)       );
+#endif
 
     initialized = TRUE;
 }
@@ -1008,6 +1056,7 @@ extern "C" void finalize_cuda(){
     gpuErrchk( cudaFree(press_gpu     ) );
     gpuErrchk( cudaFree(cair_gpu      ) );
 
+/*
     gpuErrchk( cudaFree(d_jac0        ) );
     gpuErrchk( cudaFree(d_Ghimj       ) );
     gpuErrchk( cudaFree(d_varNew      ) );
@@ -1018,7 +1067,7 @@ extern "C" void finalize_cuda(){
     gpuErrchk( cudaFree(d_var         ) );
     gpuErrchk( cudaFree(d_fix         ) );
     gpuErrchk( cudaFree(d_rconst      ) );
-
+*/
 }
 
 

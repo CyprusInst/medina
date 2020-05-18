@@ -1,7 +1,7 @@
 # MECCA - KPP Fortran to CUDA source-to-source pre-processor
 
-*Disclaimer: This software is in beta-test mode, 
-equivalent to the MESSy yellow traffic light status.
+*Disclaimer: This software is in alpha-test mode, 
+equivalent to the MESSy red traffic light status.
 No unexpected behaviour was observed under testing, and users are 
 invited to test with their model setup. However, no express guarantee
 is provided for production simulations. 
@@ -16,29 +16,31 @@ Hardware: CUDA compatible GPU (Fermi, Kepler, Pascal, Volta, or later).
 ## 2. Installation:
 
 To enable using the GPUs the file: 
-`f2c_alpha.py`  and folder `source` 
+`xmedina.py`  and folder `source` 
 have to be available in the messy/util/medina directory. 
 No additional changes are required. 
 
-To install the latest version from github, go to the messy/util directory
-and run the command:
+### Command-line options
 
-`git clone https://github.com/CyprusInst/medina.git`
+The following command line options are available to the user
+(and can be used for example to run `xmedina.py` in batch mode):
 
-**Note:** MESSy has to be linked with the `-lcudart` and `-lstdc++` flags. 
-For example, you can append the flags to the `SPEC_NETCDF_LIB` variable 
-in the configuration file (under `config/mh-XXXX`).
+* `-r / --ros`  An integer value of the Rosenbrock solver produced [1: all (select at runtime), 2: Ros2, 3: Ros3, 4: Rodas3, 5: Rodas4]
+* `-g / --gpu`  An integer value of the architecture [1: FERMI, 2: KEPLER, 3: MAXWELL, 4: PASCAL]
+* `-m / --mem`  Choose y or n wheter you want to use the global memory version (reduced stack allocation and performance) or not
+* `-s / --smcl` MESSy smcl folder location, default: "../../smcl/"'
+
 
 ## 3. Running the MECCA Fortran to CUDA source-to-source pre-processor:
 
 You have to enter the ./messy/util/medina directory to execute the
-preprocessor, by running "`python f2c_alpha.py`". The preprocessor expects
+preprocessor, by running "`python xmedina.py`". The preprocessor expects
 the following files to be in place:
 
 * `messy/smcl/messy_mecca_kpp.f90`
 * `messy/smcl/messy_cmn_photol_mem.f90`
 * `messy/smcl/messy_main_constants_mem.f90`
-* `messy/util/kpp_integrate_cuda_prototype.cu`
+* `messy/util/medina/source/kpp_integrate_cuda_prototype.cu`
 * `messy/smcl/specific.mk`
 * `messy/smcl/Makefile.m`
  
@@ -59,6 +61,16 @@ total number of CPU cores that can run simultaneously.
 ### NVIDIA Multi-Process Service
 To run multiple CPU processes per GPU, the Multi-process service (MPS) provided 
 by NVIDIA should be used.
+
+***Warning: Memory Protection*** 
+
+Volta MPS client processes have fully isolated GPU address spaces. Pre-Volta MPS client 
+processes allocate memory from different partitions of the same GPU virtual address space. As a result:
+
+* An out-of-range write in a CUDA Kernel can modify the CUDA-accessible memory state of
+another process, and will not trigger an error.
+* An out-of-range read in a CUDA Kernel can access CUDA-accessible memory modified by 
+another process, and will not trigger an error, leading to undefined behavior.
 
 ## 5. Unit testing
 
