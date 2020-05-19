@@ -925,7 +925,7 @@ __global__ void reduce_istatus_2(int4 *tmp_out_1, int4 *tmp_out_2, int *out)
 
 /* Assuming different processes */
 enum { TRUE=1, FALSE=0 } ;
-double *d_conc, *d_temp, *d_press, *d_cair, *d_khet_st, *d_khet_tr, *d_jx, *d_jac0, *d_Ghimj, *d_varNew, *d_K, *d_varErr, *d_dFdT, *d_Fcn0, *d_var, *d_fix, *d_rconst;
+double *d_conc, *d_khet_st, *d_khet_tr, *d_jx, *d_jac0, *d_Ghimj, *d_varNew, *d_K, *d_varErr, *d_dFdT, *d_Fcn0, *d_var, *d_fix, *d_rconst;
 int initialized = FALSE;
 
 /* Device pointers pointing to GPU */
@@ -989,9 +989,6 @@ __host__ void init_first_time(int pe, int VL_GLO, int size_khet_st, int size_khe
 extern "C" void finalize_cuda(){
     /* Free memory on the device */
     gpuErrchk( cudaFree(d_conc        ) );
-    gpuErrchk( cudaFree(d_temp        ) );
-    gpuErrchk( cudaFree(d_press       ) );
-    gpuErrchk( cudaFree(d_cair        ) );
     gpuErrchk( cudaFree(d_khet_st     ) );
     gpuErrchk( cudaFree(d_khet_tr     ) );
     gpuErrchk( cudaFree(d_jx          ) );
