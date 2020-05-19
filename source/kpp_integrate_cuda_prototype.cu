@@ -926,6 +926,7 @@ __global__ void reduce_istatus_2(int4 *tmp_out_1, int4 *tmp_out_2, int *out)
 /* Assuming different processes */
 enum { TRUE=1, FALSE=0 } ;
 double *d_conc, *d_khet_st, *d_khet_tr, *d_jx, *d_jac0, *d_Ghimj, *d_varNew, *d_K, *d_varErr, *d_dFdT, *d_Fcn0, *d_var, *d_fix, *d_rconst;
+double *h_conc, *h_temp, *h_press, *h_cair, *h_khet_st, *h_khet_tr, *h_jx, *h_absTol, *h_relTol;
 int initialized = FALSE;
 
 /* Device pointers pointing to GPU */
@@ -979,6 +980,18 @@ __host__ void init_first_time(int pe, int VL_GLO, int size_khet_st, int size_khe
     gpuErrchk( cudaMalloc ((void **) &d_var, sizeof(double)*VL_GLO*NSPEC)       );
     gpuErrchk( cudaMalloc ((void **) &d_fix, sizeof(double)*VL_GLO*NFIX)       );
     gpuErrchk( cudaMalloc ((void **) &d_rconst, sizeof(double)*VL_GLO*NREACT)       );
+
+    /* Allocate Staging area #TODO if the arrays would already be in pinnend memory
+     * that would be much better */
+    cudaMallocHost((void**) &h_conc    , sizeof(double)*VL_GLO*(NSPEC));
+    cudaMallocHost((void**) &h_temp    , sizeof(double)*VL_GLO);
+    cudaMallocHost((void**) &h_press   , sizeof(double)*VL_GLO);
+    cudaMallocHost((void**) &h_cair    , sizeof(double)*VL_GLO);
+    cudaMallocHost((void**) &h_khet_st , sizeof(double)*VL_GLO*size_khet_st);
+    cudaMallocHost((void**) &h_khet_tr , sizeof(double)*VL_GLO*size_khet_tr);
+    cudaMallocHost((void**) &h_jx      , sizeof(double)*VL_GLO*size_jx);
+    cudaMallocHost((void**) &h_absTol  , sizeof(double)*NVAR);
+    cudaMallocHost((void**) &h_relTol  , sizeof(double)*NVAR);
 
     initialized = TRUE;
 }
@@ -1087,20 +1100,33 @@ extern "C" void kpp_integrate_cuda_( int *pe_p, int *sizes, double *time_step_le
     /* Allocate arrays on device for update_rconst kernel*/        
     if (initialized == FALSE)   init_first_time(pe, VL_GLO, size_khet_st, size_khet_tr, size_jx);
 
+    /* Copy data to staging area #TODO: allocate memory on host, so that this is
+     * not necessary */
+    memcpy(h_conc , conc , sizeof(double)*VL_GLO*NSPEC);
+    memcpy(h_temp , temp , sizeof(double)*VL_GLO);
+    memcpy(h_press, press, sizeof(double)*VL_GLO);
+    memcpy(h_cair , cair , sizeof(double)*VL_GLO);
+    memcpy(h_khet_st, khet_st, sizeof(double)*VL_GLO*size_khet_st);
+    memcpy(h_khet_tr, khet_tr, sizeof(double)*VL_GLO*size_khet_tr);
+    memcpy(h_jx    , jx      , sizeof(double)*VL_GLO*size_jx);
+    memcpy(h_absTol, absTol  , sizeof(double)*NVAR);
+    memcpy(h_relTol, relTol  , sizeof(double)*NVAR);
+
+
     /* Copy data from host memory to device memory */
-    gpuErrchk( cudaMemcpy(d_conc   , conc   	, sizeof(double)*VL_GLO*NSPEC        , cudaMemcpyHostToDevice) );
+    gpuErrchk( cudaMemcpy(d_conc   , h_conc   	, sizeof(double)*VL_GLO*NSPEC        , cudaMemcpyHostToDevice) );
 
-    gpuErrchk( cudaMemcpy(temp_gpu   , temp   	, sizeof(double)*VL_GLO  , cudaMemcpyHostToDevice) );
-    gpuErrchk( cudaMemcpy(press_gpu  , press  	, sizeof(double)*VL_GLO  , cudaMemcpyHostToDevice) );
-    gpuErrchk( cudaMemcpy(cair_gpu   , cair   	, sizeof(double)*VL_GLO  , cudaMemcpyHostToDevice) );
+    gpuErrchk( cudaMemcpy(temp_gpu   , h_temp   	, sizeof(double)*VL_GLO  , cudaMemcpyHostToDevice) );
+    gpuErrchk( cudaMemcpy(press_gpu  , h_press  	, sizeof(double)*VL_GLO  , cudaMemcpyHostToDevice) );
+    gpuErrchk( cudaMemcpy(cair_gpu   , h_cair   	, sizeof(double)*VL_GLO  , cudaMemcpyHostToDevice) );
 
-    gpuErrchk( cudaMemcpy(d_khet_st, khet_st	, sizeof(double)*VL_GLO*size_khet_st , cudaMemcpyHostToDevice) );
-    gpuErrchk( cudaMemcpy(d_khet_tr, khet_tr	, sizeof(double)*VL_GLO*size_khet_tr , cudaMemcpyHostToDevice) );
-    gpuErrchk( cudaMemcpy(d_jx     , jx     	, sizeof(double)*VL_GLO*size_jx      , cudaMemcpyHostToDevice) );
+    gpuErrchk( cudaMemcpy(d_khet_st, h_khet_st	, sizeof(double)*VL_GLO*size_khet_st , cudaMemcpyHostToDevice) );
+    gpuErrchk( cudaMemcpy(d_khet_tr, h_khet_tr	, sizeof(double)*VL_GLO*size_khet_tr , cudaMemcpyHostToDevice) );
+    gpuErrchk( cudaMemcpy(d_jx     , h_jx     	, sizeof(double)*VL_GLO*size_jx      , cudaMemcpyHostToDevice) );
 
     /* Copy arrays from host memory to device memory for Rosenbrock */    
-    gpuErrchk( cudaMemcpy(d_absTol, absTol, sizeof(double)*NVAR, cudaMemcpyHostToDevice) );
-    gpuErrchk( cudaMemcpy(d_relTol, relTol, sizeof(double)*NVAR, cudaMemcpyHostToDevice) );
+    gpuErrchk( cudaMemcpy(d_absTol, h_absTol, sizeof(double)*NVAR, cudaMemcpyHostToDevice) );
+    gpuErrchk( cudaMemcpy(d_relTol, h_relTol, sizeof(double)*NVAR, cudaMemcpyHostToDevice) );
 
 
     /* Compute execution configuration for update_rconst */
