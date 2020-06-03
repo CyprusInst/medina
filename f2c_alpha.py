@@ -862,7 +862,7 @@ def generate_special_ros_caller(ros):
 
     roscall = []
 
-    default_call = '      Rosenbrock<<<dimGrid,dimBlock>>>(d_conc, Tstart, Tend, d_rstatus, d_istatus,\n\
+    default_call = '      Rosenbrock<<<dimGrid,dimBlock, 0, stream[i]>>>(d_conc, Tstart, Tend, d_rstatus, d_istatus,\n\
                     // values calculated from icntrl and rcntrl at host\n\
                     autonomous, vectorTol, UplimTol, method, Max_no_steps,\n\
                     d_jac0, d_Ghimj,d_varNew, d_K, d_varErr, d_dFdT, d_Fcn0, d_var, d_fix, d_rconst,\n\
@@ -873,7 +873,7 @@ def generate_special_ros_caller(ros):
                     // Global input arrays\n\
                     temp_gpu, press_gpu, cair_gpu, \n\
                     // extra - vector lenght and processor\n\
-                    VL_GLO); '
+                    VL_GLO, offset); '
 
     if ( ros == '2'):
         rosscall = '     switch (method){\n\

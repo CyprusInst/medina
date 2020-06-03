@@ -87,8 +87,6 @@
 #define Ghimj(i,j)   Ghimj[(j)]
 
 
-/* Enable debug flags for GPU */
-#define DEBUG
 
 #ifdef DEBUG
 #define GPU_DEBUG()\
@@ -676,9 +674,12 @@ void Rosenbrock(double * __restrict__ conc, const double Tstart, const double Te
                 const double * __restrict__ press_gpu,
                 const double * __restrict__ cair_gpu,
                 // extra
-                const int VL_GLO)
+                const int VL_GLO,
+								// Offset for stream computation
+								const int offset
+)
 {
-    int index = blockIdx.x*blockDim.x+threadIdx.x;
+    int index = blockIdx.x*blockDim.x+threadIdx.x+offset;
 
     /* 
      *  In theory someone can aggregate accesses together,
@@ -983,15 +984,18 @@ __host__ void init_first_time(int pe, int VL_GLO, int size_khet_st, int size_khe
 
     /* Allocate Staging area #TODO if the arrays would already be in pinnend memory
      * that would be much better */
-    cudaMallocHost((void**) &h_conc    , sizeof(double)*VL_GLO*(NSPEC));
-    cudaMallocHost((void**) &h_temp    , sizeof(double)*VL_GLO);
-    cudaMallocHost((void**) &h_press   , sizeof(double)*VL_GLO);
-    cudaMallocHost((void**) &h_cair    , sizeof(double)*VL_GLO);
-    cudaMallocHost((void**) &h_khet_st , sizeof(double)*VL_GLO*size_khet_st);
-    cudaMallocHost((void**) &h_khet_tr , sizeof(double)*VL_GLO*size_khet_tr);
-    cudaMallocHost((void**) &h_jx      , sizeof(double)*VL_GLO*size_jx);
+    int grid_size = (VL_GLO + BLOCKSIZE - 1)/BLOCKSIZE;  
+    int total_threads = grid_size*BLOCKSIZE;
+    cudaMallocHost((void**) &h_conc    , sizeof(double)*total_threads*(NSPEC));
+    cudaMallocHost((void**) &h_temp    , sizeof(double)*total_threads);
+    cudaMallocHost((void**) &h_press   , sizeof(double)*total_threads);
+    cudaMallocHost((void**) &h_cair    , sizeof(double)*total_threads);
+    cudaMallocHost((void**) &h_khet_st , sizeof(double)*total_threads*size_khet_st);
+    cudaMallocHost((void**) &h_khet_tr , sizeof(double)*total_threads*size_khet_tr);
+    cudaMallocHost((void**) &h_jx      , sizeof(double)*total_threads*size_jx);
     cudaMallocHost((void**) &h_absTol  , sizeof(double)*NVAR);
     cudaMallocHost((void**) &h_relTol  , sizeof(double)*NVAR);
+
 
     initialized = TRUE;
 }
@@ -1066,7 +1070,6 @@ extern "C" void kpp_integrate_cuda_( int *pe_p, int *sizes, double *time_step_le
 
     const double DELTAMIN = 1.0E-5;
 
-
     
     int VL_GLO       = sizes[0];
     int size_khet_st = sizes[1];
@@ -1100,35 +1103,6 @@ extern "C" void kpp_integrate_cuda_( int *pe_p, int *sizes, double *time_step_le
     /* Allocate arrays on device for update_rconst kernel*/        
     if (initialized == FALSE)   init_first_time(pe, VL_GLO, size_khet_st, size_khet_tr, size_jx);
 
-    /* Copy data to staging area #TODO: allocate memory on host, so that this is
-     * not necessary */
-    memcpy(h_conc , conc , sizeof(double)*VL_GLO*NSPEC);
-    memcpy(h_temp , temp , sizeof(double)*VL_GLO);
-    memcpy(h_press, press, sizeof(double)*VL_GLO);
-    memcpy(h_cair , cair , sizeof(double)*VL_GLO);
-    memcpy(h_khet_st, khet_st, sizeof(double)*VL_GLO*size_khet_st);
-    memcpy(h_khet_tr, khet_tr, sizeof(double)*VL_GLO*size_khet_tr);
-    memcpy(h_jx    , jx      , sizeof(double)*VL_GLO*size_jx);
-    memcpy(h_absTol, absTol  , sizeof(double)*NVAR);
-    memcpy(h_relTol, relTol  , sizeof(double)*NVAR);
-
-
-    /* Copy data from host memory to device memory */
-    gpuErrchk( cudaMemcpy(d_conc   , h_conc   	, sizeof(double)*VL_GLO*NSPEC        , cudaMemcpyHostToDevice) );
-
-    gpuErrchk( cudaMemcpy(temp_gpu   , h_temp   	, sizeof(double)*VL_GLO  , cudaMemcpyHostToDevice) );
-    gpuErrchk( cudaMemcpy(press_gpu  , h_press  	, sizeof(double)*VL_GLO  , cudaMemcpyHostToDevice) );
-    gpuErrchk( cudaMemcpy(cair_gpu   , h_cair   	, sizeof(double)*VL_GLO  , cudaMemcpyHostToDevice) );
-
-    gpuErrchk( cudaMemcpy(d_khet_st, h_khet_st	, sizeof(double)*VL_GLO*size_khet_st , cudaMemcpyHostToDevice) );
-    gpuErrchk( cudaMemcpy(d_khet_tr, h_khet_tr	, sizeof(double)*VL_GLO*size_khet_tr , cudaMemcpyHostToDevice) );
-    gpuErrchk( cudaMemcpy(d_jx     , h_jx     	, sizeof(double)*VL_GLO*size_jx      , cudaMemcpyHostToDevice) );
-
-    /* Copy arrays from host memory to device memory for Rosenbrock */    
-    gpuErrchk( cudaMemcpy(d_absTol, h_absTol, sizeof(double)*NVAR, cudaMemcpyHostToDevice) );
-    gpuErrchk( cudaMemcpy(d_relTol, h_relTol, sizeof(double)*NVAR, cudaMemcpyHostToDevice) );
-
-
     /* Compute execution configuration for update_rconst */
     int block_size, grid_size;
     
@@ -1137,12 +1111,6 @@ extern "C" void kpp_integrate_cuda_( int *pe_p, int *sizes, double *time_step_le
     dim3 dimBlock(block_size);
     dim3 dimGrid(grid_size);
 
-
-    /* Execute the kernel */
-    //update_rconst<<<dimGrid,dimBlock>>>(d_conc, d_khet_st, d_khet_tr, d_jx, VL_GLO); 
-
-    GPU_DEBUG();
- 
 //  *------------------------------------------------------*
 //  |    Default values vs input settings (icntrl, rcntrl) |
 //  *------------------------------------------------------*
@@ -1305,11 +1273,67 @@ extern "C" void kpp_integrate_cuda_( int *pe_p, int *sizes, double *time_step_le
     }
 
 
+cudaDeviceSynchronize();
+
+    /* Perhaps this value, as well as the block size, can be
+     * optimized, independently */
+    int nStreams = 1;
+    int streamSize=block_size*grid_size;
+
+    cudaStream_t stream[nStreams];
+    for (int i = 0; i < nStreams; ++i) {
+      gpuErrchk( cudaStreamCreate(&stream[i]) );
+    }
+
+    memcpy(h_absTol, absTol  , sizeof(double)*NVAR);
+    memcpy(h_relTol, relTol  , sizeof(double)*NVAR);
+    /* Copy arrays from host memory to device memory for Rosenbrock */    
+    gpuErrchk( cudaMemcpy(d_absTol, h_absTol, sizeof(double)*NVAR, cudaMemcpyHostToDevice) );
+    gpuErrchk( cudaMemcpy(d_relTol, h_relTol, sizeof(double)*NVAR, cudaMemcpyHostToDevice) );
+
+    for (int i = 0; i < nStreams; ++i) {
+      int offset = i * streamSize;
+      // Dont read beyond what we have
+      int size = min(streamSize,VL_GLO-offset);
+
+      /* Copy data to staging area #TODO: allocate memory on host, so that this is
+       * not necessary TODO: put in concurrent loop */
+      memcpy(&h_conc[offset]    , &conc[offset]    , sizeof(double)*NSPEC*size);
+      memcpy(&h_temp[offset]    , &temp[offset]    , sizeof(double)*size);
+      memcpy(&h_press[offset]   , &press[offset]   , sizeof(double)*size);
+      memcpy(&h_cair[offset]    , &cair[offset]    , sizeof(double)*size);
+      memcpy(&h_khet_st[offset] , &khet_st[offset] , sizeof(double)*size*size_khet_st);
+      memcpy(&h_khet_tr[offset] , &khet_tr[offset] , sizeof(double)*size*size_khet_tr);
+      memcpy(&h_jx[offset]      , &jx[offset]      , sizeof(double)*size*size_jx);
+
+
+      /* Copy data from host memory to device memory */
+      gpuErrchk( cudaMemcpyAsync(&d_conc[offset], &h_conc[offset], sizeof(double)*streamSize*NSPEC, cudaMemcpyHostToDevice, stream[i]) );
+
+      gpuErrchk( cudaMemcpyAsync(&temp_gpu[offset]  , &h_temp[offset]    , sizeof(double)*streamSize  , cudaMemcpyHostToDevice,stream[i]));
+      gpuErrchk( cudaMemcpyAsync(&press_gpu[offset] , &h_press[offset]   , sizeof(double)*streamSize  , cudaMemcpyHostToDevice,stream[i]));
+      gpuErrchk( cudaMemcpyAsync(&cair_gpu[offset]  , &h_cair[offset]    , sizeof(double)*streamSize , cudaMemcpyHostToDevice,stream[i] ));
+
+      gpuErrchk( cudaMemcpyAsync(&d_khet_st[offset] , &h_khet_st[offset] , sizeof(double)*streamSize*size_khet_st , cudaMemcpyHostToDevice, stream[i] ));
+      gpuErrchk( cudaMemcpyAsync(&d_khet_tr[offset] , &h_khet_tr[offset] , sizeof(double)*streamSize*size_khet_tr , cudaMemcpyHostToDevice, stream[i] ));
+      gpuErrchk( cudaMemcpyAsync(&d_jx[offset]      , &h_jx[offset]      , sizeof(double)*streamSize*size_jx      , cudaMemcpyHostToDevice, stream[i] ));
+
+
+
+    /* Execute the kernel */
+    //update_rconst<<<dimGrid,dimBlock>>>(d_conc, d_khet_st, d_khet_tr, d_jx, VL_GLO); 
+
+ 
     =#=#=#=#=#=#=#=#=#=#=call_kernel=#=#=#=#=#=#=#=#=#=#=
 
-    GPU_DEBUG();
-
+		}
     
+    for (int i = 0; i < nStreams; ++i) {
+      gpuErrchk( cudaStreamDestroy(stream[i]) );
+    }
+    
+    gpuErrchk(cudaDeviceSynchronize());
+
     reduce_istatus_1<<<REDUCTION_SIZE_2,REDUCTION_SIZE_1>>>(d_istatus, d_tmp_out_1, d_tmp_out_2, VL_GLO, d_xNacc, d_xNrej);
 
 
