@@ -862,7 +862,7 @@ def generate_special_ros_caller(ros):
 
     roscall = []
 
-    default_call = '      Rosenbrock<<<dimGrid,dimBlock, 0, stream[i]>>>(d_conc, Tstart, Tend, d_rstatus, d_istatus,\n\
+    default_call = '      Rosenbrock<<<nBlocks,dimBlock, 0, stream[i]>>>(d_conc, Tstart, Tend, d_rstatus, d_istatus,\n\
                     // values calculated from icntrl and rcntrl at host\n\
                     autonomous, vectorTol, UplimTol, method, Max_no_steps,\n\
                     d_jac0, d_Ghimj,d_varNew, d_K, d_varErr, d_dFdT, d_Fcn0, d_var, d_fix, d_rconst,\n\
