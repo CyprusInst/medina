@@ -935,6 +935,12 @@ double *d_rstatus, *d_absTol, *d_relTol;
 int *d_istatus, *d_istatus_rd, *d_xNacc, *d_xNrej;
 int4 *d_tmp_out_1, *d_tmp_out_2;
 
+/* number of streams, blocks per kernel call, and threads per block */
+int nStreams;
+int streamSize;
+int nBlocks;
+cudaStream_t *stream;
+
 /* Allocate arrays on device for Rosenbrock */
 __host__ void init_first_time(int pe, int VL_GLO, int size_khet_st, int size_khet_tr, int size_jx ){
 
@@ -996,6 +1002,15 @@ __host__ void init_first_time(int pe, int VL_GLO, int size_khet_st, int size_khe
     cudaMallocHost((void**) &h_absTol  , sizeof(double)*NVAR);
     cudaMallocHost((void**) &h_relTol  , sizeof(double)*NVAR);
 
+    nStreams = min(64,grid_size);
+    nBlocks = (grid_size-1)/nStreams+1;
+    streamSize = nBlocks*BLOCKSIZE;
+    //recalulate nstreams
+    nStreams = (grid_size-1)/nBlocks+1;
+    stream = (cudaStream_t*)malloc(sizeof(cudaStream_t)*nStreams); 
+    for (int i = 0; i < nStreams; ++i) {
+      gpuErrchk( cudaStreamCreate(&stream[i]) );
+    }
 
     initialized = TRUE;
 }
@@ -1033,6 +1048,10 @@ extern "C" void finalize_cuda(){
     gpuErrchk( cudaFree(d_fix         ) );
     gpuErrchk( cudaFree(d_rconst      ) );
 
+    for (int i = 0; i < nStreams; ++i) {
+      gpuErrchk( cudaStreamDestroy(stream[i]) );
+    }
+    free(stream);
 }
 
 
@@ -1273,23 +1292,11 @@ extern "C" void kpp_integrate_cuda_( int *pe_p, int *sizes, double *time_step_le
     }
 
 
-    /* Perhaps this value, as well as the block size, can be
-     * optimized, independently */
-    int nStreams = grid_size;
-    int streamSize=block_size;
-    int nBlocks=1;
-
-    cudaStream_t stream[nStreams];
-    for (int i = 0; i < nStreams; ++i) {
-      gpuErrchk( cudaStreamCreate(&stream[i]) );
-    }
-
     memcpy(h_absTol, absTol  , sizeof(double)*NVAR);
     memcpy(h_relTol, relTol  , sizeof(double)*NVAR);
     /* Copy arrays from host memory to device memory for Rosenbrock */    
     gpuErrchk( cudaMemcpy(d_absTol, h_absTol, sizeof(double)*NVAR, cudaMemcpyHostToDevice) );
     gpuErrchk( cudaMemcpy(d_relTol, h_relTol, sizeof(double)*NVAR, cudaMemcpyHostToDevice) );
-
 
     for (int i = 0; i < nStreams; ++i) {
       int offset = i * streamSize;
@@ -1318,9 +1325,8 @@ extern "C" void kpp_integrate_cuda_( int *pe_p, int *sizes, double *time_step_le
       gpuErrchk( cudaMemcpyAsync(&d_khet_tr[offset*size_khet_tr] , &h_khet_tr[offset*size_khet_tr] , sizeof(double)*streamSize*size_khet_tr , cudaMemcpyHostToDevice, stream[i] ));
       gpuErrchk( cudaMemcpyAsync(&d_jx[offset*size_jx]      , &h_jx[offset*size_jx]      , sizeof(double)*streamSize*size_jx      , cudaMemcpyHostToDevice, stream[i] ));
 
-}
+    }
 cudaDeviceSynchronize(); //TODO because data is transposed, transfer must complete fully over all streams, a pity, we should solve this
-
     for (int i = 0; i < nStreams; ++i) {
       int offset = i * streamSize;
 
@@ -1332,10 +1338,6 @@ cudaDeviceSynchronize(); //TODO because data is transposed, transfer must comple
 
 		}
     
-    
-    for (int i = 0; i < nStreams; ++i) {
-      gpuErrchk( cudaStreamDestroy(stream[i]) );
-    }
 
     reduce_istatus_1<<<REDUCTION_SIZE_2,REDUCTION_SIZE_1>>>(d_istatus, d_tmp_out_1, d_tmp_out_2, VL_GLO, d_xNacc, d_xNrej);
 
