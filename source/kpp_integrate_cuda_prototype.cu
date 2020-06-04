@@ -142,7 +142,7 @@ __device__ void  update_rconst(const double * __restrict__ var,
  			       const double * __restrict__ temp_gpu,
  			       const double * __restrict__ press_gpu,
  			       const double * __restrict__ cair_gpu,
-			       const int VL_GLO);
+			       const int VL_GLO, const int offset);
 
 /* This runs on CPU */
 double machine_eps_flt()
@@ -298,7 +298,6 @@ __device__ void ros_FunTimeDerivative(const double T, double roundoff, double * 
                                       const double * __restrict__ jx,
                                       const int VL_GLO)
 {
-    int index = blockIdx.x*blockDim.x+threadIdx.x;
     const double DELTAMIN = 1.0E-6;
     double delta,one_over_delta;
 
@@ -331,7 +330,6 @@ __device__  static  int ros_Integrator(double * __restrict__ var, const double *
         // VL_GLO
         const int VL_GLO)
 {
-    int index = blockIdx.x*blockDim.x+threadIdx.x;
 
     double H, Hnew, HC, HG, Fac; // Tau - not used
     double Err; //*varErr;
@@ -676,7 +674,7 @@ void Rosenbrock(double * __restrict__ conc, const double Tstart, const double Te
                 // extra
                 const int VL_GLO,
 								// Offset for stream computation
-								const int offset
+                const int offset
 )
 {
     int index = blockIdx.x*blockDim.x+threadIdx.x+offset;
@@ -688,6 +686,10 @@ void Rosenbrock(double * __restrict__ conc, const double Tstart, const double Te
      *  optimize accesses. 
      *
      */
+
+    if (index < VL_GLO)
+    {
+
     double *Ghimj  = &d_Ghimj[index*LU_NONZERO];    
     double *K      = &d_K[index*NVAR*6];
     double *varNew = &d_varNew[index*NVAR];
@@ -700,9 +702,6 @@ void Rosenbrock(double * __restrict__ conc, const double Tstart, const double Te
     double *rconst = &d_rconst[index*NREACT];
 
 
-
-    if (index < VL_GLO)
-    {
 
         int Nfun,Njac,Nstp,Nacc,Nrej,Ndec,Nsol,Nsng;
         double Texit, Hexit;
@@ -746,7 +745,7 @@ void Rosenbrock(double * __restrict__ conc, const double Tstart, const double Te
             fix(index,i) = conc(index,NVAR+i);
 
 
-        update_rconst(var, khet_st, khet_tr, jx, rconst, temp_gpu, press_gpu, cair_gpu, VL_GLO); 
+        update_rconst(var, khet_st, khet_tr, jx, rconst, temp_gpu, press_gpu, cair_gpu, VL_GLO, offset); 
 
         ros_Integrator(var, fix, Tstart, Tend, Texit,
                 //  Rosenbrock method coefficients
@@ -991,18 +990,17 @@ __host__ void init_first_time(int pe, int VL_GLO, int size_khet_st, int size_khe
     /* Allocate Staging area #TODO if the arrays would already be in pinnend memory
      * that would be much better */
     int grid_size = (VL_GLO + BLOCKSIZE - 1)/BLOCKSIZE;  
-    int total_threads = grid_size*BLOCKSIZE;
-    cudaMallocHost((void**) &h_conc    , sizeof(double)*total_threads*(NSPEC));
-    cudaMallocHost((void**) &h_temp    , sizeof(double)*total_threads);
-    cudaMallocHost((void**) &h_press   , sizeof(double)*total_threads);
-    cudaMallocHost((void**) &h_cair    , sizeof(double)*total_threads);
-    cudaMallocHost((void**) &h_khet_st , sizeof(double)*total_threads*size_khet_st);
-    cudaMallocHost((void**) &h_khet_tr , sizeof(double)*total_threads*size_khet_tr);
-    cudaMallocHost((void**) &h_jx      , sizeof(double)*total_threads*size_jx);
+    cudaMallocHost((void**) &h_conc    , sizeof(double)*VL_GLO*(NSPEC));
+    cudaMallocHost((void**) &h_temp    , sizeof(double)*VL_GLO);
+    cudaMallocHost((void**) &h_press   , sizeof(double)*VL_GLO);
+    cudaMallocHost((void**) &h_cair    , sizeof(double)*VL_GLO);
+    cudaMallocHost((void**) &h_khet_st , sizeof(double)*VL_GLO*size_khet_st);
+    cudaMallocHost((void**) &h_khet_tr , sizeof(double)*VL_GLO*size_khet_tr);
+    cudaMallocHost((void**) &h_jx      , sizeof(double)*VL_GLO*size_jx);
     cudaMallocHost((void**) &h_absTol  , sizeof(double)*NVAR);
     cudaMallocHost((void**) &h_relTol  , sizeof(double)*NVAR);
 
-    nStreams = min(64,grid_size);
+    nStreams = min(4,grid_size);
     nBlocks = (grid_size-1)/nStreams+1;
     streamSize = nBlocks*BLOCKSIZE;
     //recalulate nstreams
@@ -1011,6 +1009,14 @@ __host__ void init_first_time(int pe, int VL_GLO, int size_khet_st, int size_khe
     for (int i = 0; i < nStreams; ++i) {
       gpuErrchk( cudaStreamCreate(&stream[i]) );
     }
+
+    printf("CUDA Setup:\n");
+    printf("  grid_size: %d\n",grid_size);
+    printf("  block_size: %d\n",BLOCKSIZE);
+    printf("  nStreams: %d\n",nStreams);
+    printf("  nBlocks_per_stream: %d\n",nBlocks);
+    printf("  streamSize: %d\n",streamSize);
+    printf("  VL_GLO: %d\n",VL_GLO);
 
     initialized = TRUE;
 }
@@ -1128,7 +1134,6 @@ extern "C" void kpp_integrate_cuda_( int *pe_p, int *sizes, double *time_step_le
     block_size = BLOCKSIZE;
     grid_size = (VL_GLO + block_size - 1)/block_size;  
     dim3 dimBlock(block_size);
-    dim3 dimGrid(grid_size);
 
 //  *------------------------------------------------------*
 //  |    Default values vs input settings (icntrl, rcntrl) |
@@ -1315,20 +1320,21 @@ extern "C" void kpp_integrate_cuda_( int *pe_p, int *sizes, double *time_step_le
 
 
       /* Copy data from host memory to device memory */
-      gpuErrchk( cudaMemcpyAsync(&d_conc[offset*NSPEC], &h_conc[offset*NSPEC], sizeof(double)*streamSize*NSPEC, cudaMemcpyHostToDevice, stream[i]) );
+      gpuErrchk( cudaMemcpyAsync(&d_conc[offset*NSPEC], &h_conc[offset*NSPEC], sizeof(double)*size*NSPEC, cudaMemcpyHostToDevice, stream[i]) );
 
-      gpuErrchk( cudaMemcpyAsync(&temp_gpu[offset]  , &h_temp[offset]    , sizeof(double)*streamSize  , cudaMemcpyHostToDevice,stream[i]));
-      gpuErrchk( cudaMemcpyAsync(&press_gpu[offset] , &h_press[offset]   , sizeof(double)*streamSize  , cudaMemcpyHostToDevice,stream[i]));
-      gpuErrchk( cudaMemcpyAsync(&cair_gpu[offset]  , &h_cair[offset]    , sizeof(double)*streamSize , cudaMemcpyHostToDevice,stream[i] ));
+      gpuErrchk( cudaMemcpyAsync(&temp_gpu[offset]  , &h_temp[offset]    , sizeof(double)*size  , cudaMemcpyHostToDevice,stream[i]));
+      gpuErrchk( cudaMemcpyAsync(&press_gpu[offset] , &h_press[offset]   , sizeof(double)*size  , cudaMemcpyHostToDevice,stream[i]));
+      gpuErrchk( cudaMemcpyAsync(&cair_gpu[offset]  , &h_cair[offset]    , sizeof(double)*size , cudaMemcpyHostToDevice,stream[i] ));
 
-      gpuErrchk( cudaMemcpyAsync(&d_khet_st[offset*size_khet_st] , &h_khet_st[offset*size_khet_st] , sizeof(double)*streamSize*size_khet_st , cudaMemcpyHostToDevice, stream[i] ));
-      gpuErrchk( cudaMemcpyAsync(&d_khet_tr[offset*size_khet_tr] , &h_khet_tr[offset*size_khet_tr] , sizeof(double)*streamSize*size_khet_tr , cudaMemcpyHostToDevice, stream[i] ));
-      gpuErrchk( cudaMemcpyAsync(&d_jx[offset*size_jx]      , &h_jx[offset*size_jx]      , sizeof(double)*streamSize*size_jx      , cudaMemcpyHostToDevice, stream[i] ));
+      gpuErrchk( cudaMemcpyAsync(&d_khet_st[offset*size_khet_st] , &h_khet_st[offset*size_khet_st] , sizeof(double)*size*size_khet_st , cudaMemcpyHostToDevice, stream[i] ));
+      gpuErrchk( cudaMemcpyAsync(&d_khet_tr[offset*size_khet_tr] , &h_khet_tr[offset*size_khet_tr] , sizeof(double)*size*size_khet_tr , cudaMemcpyHostToDevice, stream[i] ));
+      gpuErrchk( cudaMemcpyAsync(&d_jx[offset*size_jx]      , &h_jx[offset*size_jx]      , sizeof(double)*size*size_jx      , cudaMemcpyHostToDevice, stream[i] ));
 
     }
 cudaDeviceSynchronize(); //TODO because data is transposed, transfer must complete fully over all streams, a pity, we should solve this
     for (int i = 0; i < nStreams; ++i) {
       int offset = i * streamSize;
+      dim3 dimGrid(min(nBlocks,(grid_size-i*nBlocks)));
 
     /* Execute the kernel */
     //update_rconst<<<dimGrid,dimBlock>>>(d_conc, d_khet_st, d_khet_tr, d_jx, VL_GLO); 
@@ -1337,7 +1343,7 @@ cudaDeviceSynchronize(); //TODO because data is transposed, transfer must comple
     =#=#=#=#=#=#=#=#=#=#=call_kernel=#=#=#=#=#=#=#=#=#=#=
 
 		}
-    
+cudaDeviceSynchronize();
 
     reduce_istatus_1<<<REDUCTION_SIZE_2,REDUCTION_SIZE_1>>>(d_istatus, d_tmp_out_1, d_tmp_out_2, VL_GLO, d_xNacc, d_xNrej);
 

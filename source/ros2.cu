@@ -14,9 +14,10 @@ __device__  static  int ros_Integrator_ros2(double * __restrict__ var, const dou
         const double * __restrict__ khet_st, const double * __restrict__ khet_tr,
         const double * __restrict__ jx,
         // VL_GLO
-        const int VL_GLO)
+        const int VL_GLO, 
+        const int offset)
 {
-    int index = blockIdx.x*blockDim.x+threadIdx.x;
+    int index = blockIdx.x*blockDim.x+threadIdx.x+offset;
 
     double H, Hnew, HC, HG, Fac; // Tau - not used
     double Err; //*varErr;
