@@ -1000,7 +1000,7 @@ __host__ void init_first_time(int pe, int VL_GLO, int size_khet_st, int size_khe
     cudaMallocHost((void**) &h_absTol  , sizeof(double)*NVAR);
     cudaMallocHost((void**) &h_relTol  , sizeof(double)*NVAR);
 
-    nStreams = min(4,grid_size);
+    nStreams = grid_size;
     nBlocks = (grid_size-1)/nStreams+1;
     streamSize = nBlocks*BLOCKSIZE;
     //recalulate nstreams
@@ -1010,6 +1010,7 @@ __host__ void init_first_time(int pe, int VL_GLO, int size_khet_st, int size_khe
       gpuErrchk( cudaStreamCreate(&stream[i]) );
     }
 
+#ifdef DEBUG 
     printf("CUDA Setup:\n");
     printf("  grid_size: %d\n",grid_size);
     printf("  block_size: %d\n",BLOCKSIZE);
@@ -1017,6 +1018,7 @@ __host__ void init_first_time(int pe, int VL_GLO, int size_khet_st, int size_khe
     printf("  nBlocks_per_stream: %d\n",nBlocks);
     printf("  streamSize: %d\n",streamSize);
     printf("  VL_GLO: %d\n",VL_GLO);
+#endif
 
     initialized = TRUE;
 }
@@ -1303,6 +1305,7 @@ extern "C" void kpp_integrate_cuda_( int *pe_p, int *sizes, double *time_step_le
     gpuErrchk( cudaMemcpy(d_absTol, h_absTol, sizeof(double)*NVAR, cudaMemcpyHostToDevice) );
     gpuErrchk( cudaMemcpy(d_relTol, h_relTol, sizeof(double)*NVAR, cudaMemcpyHostToDevice) );
 
+    dim3 dimGrid(nBlocks);
     for (int i = 0; i < nStreams; ++i) {
       int offset = i * streamSize;
       // Dont read beyond what we have
@@ -1334,7 +1337,6 @@ extern "C" void kpp_integrate_cuda_( int *pe_p, int *sizes, double *time_step_le
 cudaDeviceSynchronize(); //TODO because data is transposed, transfer must complete fully over all streams, a pity, we should solve this
     for (int i = 0; i < nStreams; ++i) {
       int offset = i * streamSize;
-      dim3 dimGrid(min(nBlocks,(grid_size-i*nBlocks)));
 
     /* Execute the kernel */
     //update_rconst<<<dimGrid,dimBlock>>>(d_conc, d_khet_st, d_khet_tr, d_jx, VL_GLO); 
