@@ -263,9 +263,9 @@ void Rosenbrock_rodas3(double * __restrict__ conc, const double Tstart, const do
                 const double * __restrict__ temp_gpu,
                 const double * __restrict__ press_gpu,
                 const double * __restrict__ cair_gpu,
-                const int VL_GLO)
+                const int VL_GLO, const int offset)
 {
-    int index = blockIdx.x*blockDim.x+threadIdx.x;
+    int index = blockIdx.x*blockDim.x+threadIdx.x+offset;
 
 
     /* 
@@ -329,7 +329,7 @@ void Rosenbrock_rodas3(double * __restrict__ conc, const double Tstart, const do
         for (int i=0; i<NFIX; i++)
             fix(index,i) = conc(index,NVAR+i);
 
-        update_rconst(var, khet_st, khet_tr, jx, rconst, temp_gpu, press_gpu, cair_gpu, VL_GLO); 
+        update_rconst(var, khet_st, khet_tr, jx, rconst, temp_gpu, press_gpu, cair_gpu, VL_GLO, offset); 
 
         ros_Integrator_rodas3(var, fix, Tstart, Tend, Texit,
                 //  Integration parameters
@@ -343,7 +343,7 @@ void Rosenbrock_rodas3(double * __restrict__ conc, const double Tstart, const do
                 K, dFdT, jac0, Ghimj,  varErr, 
                 // For update rconst
                 khet_st, khet_tr, jx,
-                VL_GLO
+                VL_GLO, offset
                 );
 
         for (int i=0; i<NVAR; i++)
