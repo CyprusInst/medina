@@ -1311,32 +1311,33 @@ extern "C" void kpp_integrate_cuda_( int *pe_p, int *sizes, double *time_step_le
       // Dont read beyond what we have
       int size = min(streamSize,VL_GLO-offset);
 
-      /* Copy data to staging area #TODO: allocate memory on host, so that this is
+      /* Copy data to staging area and subequently to device
+			 #TODO: allocate memory on host, so that this is
        * not necessary TODO: put in concurrent loop */
-      memcpy(&h_conc[offset*NSPEC]    , &conc[offset*NSPEC]    , sizeof(double)*NSPEC*size);
+      for (int j = 0; j < NSPEC; ++j) {
+        memcpy(&h_conc[offset+VL_GLO*j]    , &conc[offset+VL_GLO*j]    , sizeof(double)*size);
+        gpuErrchk( cudaMemcpyAsync(&d_conc[offset+VL_GLO*j], &h_conc[offset+VL_GLO*j], sizeof(double)*size, cudaMemcpyHostToDevice, stream[i]) );
+      }
+
       memcpy(&h_temp[offset]    , &temp[offset]    , sizeof(double)*size);
-      memcpy(&h_press[offset]   , &press[offset]   , sizeof(double)*size);
-      memcpy(&h_cair[offset]    , &cair[offset]    , sizeof(double)*size);
-      memcpy(&h_khet_st[offset*size_khet_st] , &khet_st[offset*size_khet_st] , sizeof(double)*size*size_khet_st);
-      memcpy(&h_khet_tr[offset*size_khet_tr] , &khet_tr[offset*size_khet_tr] , sizeof(double)*size*size_khet_tr);
-      memcpy(&h_jx[offset*size_jx]      , &jx[offset*size_jx]      , sizeof(double)*size*size_jx);
-
-
-      /* Copy data from host memory to device memory */
-      gpuErrchk( cudaMemcpyAsync(&d_conc[offset*NSPEC], &h_conc[offset*NSPEC], sizeof(double)*size*NSPEC, cudaMemcpyHostToDevice, stream[i]) );
-
       gpuErrchk( cudaMemcpyAsync(&temp_gpu[offset]  , &h_temp[offset]    , sizeof(double)*size  , cudaMemcpyHostToDevice,stream[i]));
+      memcpy(&h_press[offset]   , &press[offset]   , sizeof(double)*size);
       gpuErrchk( cudaMemcpyAsync(&press_gpu[offset] , &h_press[offset]   , sizeof(double)*size  , cudaMemcpyHostToDevice,stream[i]));
+      memcpy(&h_cair[offset]    , &cair[offset]    , sizeof(double)*size);
       gpuErrchk( cudaMemcpyAsync(&cair_gpu[offset]  , &h_cair[offset]    , sizeof(double)*size , cudaMemcpyHostToDevice,stream[i] ));
 
-      gpuErrchk( cudaMemcpyAsync(&d_khet_st[offset*size_khet_st] , &h_khet_st[offset*size_khet_st] , sizeof(double)*size*size_khet_st , cudaMemcpyHostToDevice, stream[i] ));
-      gpuErrchk( cudaMemcpyAsync(&d_khet_tr[offset*size_khet_tr] , &h_khet_tr[offset*size_khet_tr] , sizeof(double)*size*size_khet_tr , cudaMemcpyHostToDevice, stream[i] ));
-      gpuErrchk( cudaMemcpyAsync(&d_jx[offset*size_jx]      , &h_jx[offset*size_jx]      , sizeof(double)*size*size_jx      , cudaMemcpyHostToDevice, stream[i] ));
-
-    }
-cudaDeviceSynchronize(); //TODO because data is transposed, transfer must complete fully over all streams, a pity, we should solve this
-    for (int i = 0; i < nStreams; ++i) {
-      int offset = i * streamSize;
+      for (int j = 0; j < size_khet_st; ++j) {
+				memcpy(&h_khet_st[offset+VL_GLO*j] , &khet_st[offset+VL_GLO*j] , sizeof(double)*size);
+				gpuErrchk( cudaMemcpyAsync(&d_khet_st[offset+VL_GLO*j] , &h_khet_st[offset+VL_GLO*j] , sizeof(double)*size , cudaMemcpyHostToDevice, stream[i] ));
+			}
+      for (int j = 0; j < size_khet_tr; ++j) {
+				memcpy(&h_khet_tr[offset+VL_GLO*j] , &khet_tr[offset+VL_GLO*j] , sizeof(double)*size);
+				gpuErrchk( cudaMemcpyAsync(&d_khet_tr[offset+VL_GLO*j] , &h_khet_tr[offset+VL_GLO*j] , sizeof(double)*size , cudaMemcpyHostToDevice, stream[i] ));
+			}
+      for (int j = 0; j < size_jx; ++j) {
+				memcpy(&h_jx[offset+VL_GLO*j]      , &jx[offset+VL_GLO*j]      , sizeof(double)*size);
+				gpuErrchk( cudaMemcpyAsync(&d_jx[offset+VL_GLO*j]      , &h_jx[offset+VL_GLO*j]      , sizeof(double)*size  , cudaMemcpyHostToDevice, stream[i] ));
+			}
 
     /* Execute the kernel */
     //update_rconst<<<dimGrid,dimBlock>>>(d_conc, d_khet_st, d_khet_tr, d_jx, VL_GLO); 
