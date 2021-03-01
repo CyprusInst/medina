@@ -87,8 +87,6 @@
 #define Ghimj(i,j)   Ghimj[(j)]
 
 
-/* Enable debug flags for GPU */
-#define DEBUG
 
 #ifdef DEBUG
 #define GPU_DEBUG()\
@@ -144,7 +142,7 @@ __device__ void  update_rconst(const double * __restrict__ var,
  			       const double * __restrict__ temp_gpu,
  			       const double * __restrict__ press_gpu,
  			       const double * __restrict__ cair_gpu,
-			       const int VL_GLO);
+			       const int VL_GLO, const int offset);
 
 /* This runs on CPU */
 double machine_eps_flt()
@@ -300,7 +298,6 @@ __device__ void ros_FunTimeDerivative(const double T, double roundoff, double * 
                                       const double * __restrict__ jx,
                                       const int VL_GLO)
 {
-    int index = blockIdx.x*blockDim.x+threadIdx.x;
     const double DELTAMIN = 1.0E-6;
     double delta,one_over_delta;
 
@@ -333,7 +330,6 @@ __device__  static  int ros_Integrator(double * __restrict__ var, const double *
         // VL_GLO
         const int VL_GLO)
 {
-    int index = blockIdx.x*blockDim.x+threadIdx.x;
 
     double H, Hnew, HC, HG, Fac; // Tau - not used
     double Err; //*varErr;
@@ -676,9 +672,12 @@ void Rosenbrock(double * __restrict__ conc, const double Tstart, const double Te
                 const double * __restrict__ press_gpu,
                 const double * __restrict__ cair_gpu,
                 // extra
-                const int VL_GLO)
+                const int VL_GLO,
+								// Offset for stream computation
+                const int offset
+)
 {
-    int index = blockIdx.x*blockDim.x+threadIdx.x;
+    int index = blockIdx.x*blockDim.x+threadIdx.x+offset;
 
     /* 
      *  In theory someone can aggregate accesses together,
@@ -687,6 +686,10 @@ void Rosenbrock(double * __restrict__ conc, const double Tstart, const double Te
      *  optimize accesses. 
      *
      */
+
+    if (index < VL_GLO)
+    {
+
     double *Ghimj  = &d_Ghimj[index*LU_NONZERO];    
     double *K      = &d_K[index*NVAR*6];
     double *varNew = &d_varNew[index*NVAR];
@@ -699,9 +702,6 @@ void Rosenbrock(double * __restrict__ conc, const double Tstart, const double Te
     double *rconst = &d_rconst[index*NREACT];
 
 
-
-    if (index < VL_GLO)
-    {
 
         int Nfun,Njac,Nstp,Nacc,Nrej,Ndec,Nsol,Nsng;
         double Texit, Hexit;
@@ -745,7 +745,7 @@ void Rosenbrock(double * __restrict__ conc, const double Tstart, const double Te
             fix(index,i) = conc(index,NVAR+i);
 
 
-        update_rconst(var, khet_st, khet_tr, jx, rconst, temp_gpu, press_gpu, cair_gpu, VL_GLO); 
+        update_rconst(var, khet_st, khet_tr, jx, rconst, temp_gpu, press_gpu, cair_gpu, VL_GLO, offset); 
 
         ros_Integrator(var, fix, Tstart, Tend, Texit,
                 //  Rosenbrock method coefficients
@@ -925,13 +925,20 @@ __global__ void reduce_istatus_2(int4 *tmp_out_1, int4 *tmp_out_2, int *out)
 
 /* Assuming different processes */
 enum { TRUE=1, FALSE=0 } ;
-double *d_conc, *d_temp, *d_press, *d_cair, *d_khet_st, *d_khet_tr, *d_jx, *d_jac0, *d_Ghimj, *d_varNew, *d_K, *d_varErr, *d_dFdT, *d_Fcn0, *d_var, *d_fix, *d_rconst;
+double *d_conc, *d_khet_st, *d_khet_tr, *d_jx, *d_jac0, *d_Ghimj, *d_varNew, *d_K, *d_varErr, *d_dFdT, *d_Fcn0, *d_var, *d_fix, *d_rconst;
+double *h_conc, *h_temp, *h_press, *h_cair, *h_khet_st, *h_khet_tr, *h_jx, *h_absTol, *h_relTol;
 int initialized = FALSE;
 
 /* Device pointers pointing to GPU */
 double *d_rstatus, *d_absTol, *d_relTol;
 int *d_istatus, *d_istatus_rd, *d_xNacc, *d_xNrej;
 int4 *d_tmp_out_1, *d_tmp_out_2;
+
+/* number of streams, blocks per kernel call, and threads per block */
+int nStreams;
+int streamSize;
+int nBlocks;
+cudaStream_t *stream;
 
 /* Allocate arrays on device for Rosenbrock */
 __host__ void init_first_time(int pe, int VL_GLO, int size_khet_st, int size_khet_tr, int size_jx ){
@@ -980,6 +987,39 @@ __host__ void init_first_time(int pe, int VL_GLO, int size_khet_st, int size_khe
     gpuErrchk( cudaMalloc ((void **) &d_fix, sizeof(double)*VL_GLO*NFIX)       );
     gpuErrchk( cudaMalloc ((void **) &d_rconst, sizeof(double)*VL_GLO*NREACT)       );
 
+    /* Allocate Staging area #TODO if the arrays would already be in pinnend memory
+     * that would be much better */
+    int grid_size = (VL_GLO + BLOCKSIZE - 1)/BLOCKSIZE;  
+    cudaMallocHost((void**) &h_conc    , sizeof(double)*VL_GLO*(NSPEC));
+    cudaMallocHost((void**) &h_temp    , sizeof(double)*VL_GLO);
+    cudaMallocHost((void**) &h_press   , sizeof(double)*VL_GLO);
+    cudaMallocHost((void**) &h_cair    , sizeof(double)*VL_GLO);
+    cudaMallocHost((void**) &h_khet_st , sizeof(double)*VL_GLO*size_khet_st);
+    cudaMallocHost((void**) &h_khet_tr , sizeof(double)*VL_GLO*size_khet_tr);
+    cudaMallocHost((void**) &h_jx      , sizeof(double)*VL_GLO*size_jx);
+    cudaMallocHost((void**) &h_absTol  , sizeof(double)*NVAR);
+    cudaMallocHost((void**) &h_relTol  , sizeof(double)*NVAR);
+
+    nStreams = grid_size;
+    nBlocks = (grid_size-1)/nStreams+1;
+    streamSize = nBlocks*BLOCKSIZE;
+    //recalulate nstreams
+    nStreams = (grid_size-1)/nBlocks+1;
+    stream = (cudaStream_t*)malloc(sizeof(cudaStream_t)*nStreams); 
+    for (int i = 0; i < nStreams; ++i) {
+      gpuErrchk( cudaStreamCreate(&stream[i]) );
+    }
+
+#ifdef DEBUG 
+    printf("CUDA Setup:\n");
+    printf("  grid_size: %d\n",grid_size);
+    printf("  block_size: %d\n",BLOCKSIZE);
+    printf("  nStreams: %d\n",nStreams);
+    printf("  nBlocks_per_stream: %d\n",nBlocks);
+    printf("  streamSize: %d\n",streamSize);
+    printf("  VL_GLO: %d\n",VL_GLO);
+#endif
+
     initialized = TRUE;
 }
 
@@ -989,9 +1029,6 @@ __host__ void init_first_time(int pe, int VL_GLO, int size_khet_st, int size_khe
 extern "C" void finalize_cuda(){
     /* Free memory on the device */
     gpuErrchk( cudaFree(d_conc        ) );
-    gpuErrchk( cudaFree(d_temp        ) );
-    gpuErrchk( cudaFree(d_press       ) );
-    gpuErrchk( cudaFree(d_cair        ) );
     gpuErrchk( cudaFree(d_khet_st     ) );
     gpuErrchk( cudaFree(d_khet_tr     ) );
     gpuErrchk( cudaFree(d_jx          ) );
@@ -1019,6 +1056,10 @@ extern "C" void finalize_cuda(){
     gpuErrchk( cudaFree(d_fix         ) );
     gpuErrchk( cudaFree(d_rconst      ) );
 
+    for (int i = 0; i < nStreams; ++i) {
+      gpuErrchk( cudaStreamDestroy(stream[i]) );
+    }
+    free(stream);
 }
 
 
@@ -1056,7 +1097,6 @@ extern "C" void kpp_integrate_cuda_( int *pe_p, int *sizes, double *time_step_le
 
     const double DELTAMIN = 1.0E-5;
 
-
     
     int VL_GLO       = sizes[0];
     int size_khet_st = sizes[1];
@@ -1090,36 +1130,13 @@ extern "C" void kpp_integrate_cuda_( int *pe_p, int *sizes, double *time_step_le
     /* Allocate arrays on device for update_rconst kernel*/        
     if (initialized == FALSE)   init_first_time(pe, VL_GLO, size_khet_st, size_khet_tr, size_jx);
 
-    /* Copy data from host memory to device memory */
-    gpuErrchk( cudaMemcpy(d_conc   , conc   	, sizeof(double)*VL_GLO*NSPEC        , cudaMemcpyHostToDevice) );
-
-    gpuErrchk( cudaMemcpy(temp_gpu   , temp   	, sizeof(double)*VL_GLO  , cudaMemcpyHostToDevice) );
-    gpuErrchk( cudaMemcpy(press_gpu  , press  	, sizeof(double)*VL_GLO  , cudaMemcpyHostToDevice) );
-    gpuErrchk( cudaMemcpy(cair_gpu   , cair   	, sizeof(double)*VL_GLO  , cudaMemcpyHostToDevice) );
-
-    gpuErrchk( cudaMemcpy(d_khet_st, khet_st	, sizeof(double)*VL_GLO*size_khet_st , cudaMemcpyHostToDevice) );
-    gpuErrchk( cudaMemcpy(d_khet_tr, khet_tr	, sizeof(double)*VL_GLO*size_khet_tr , cudaMemcpyHostToDevice) );
-    gpuErrchk( cudaMemcpy(d_jx     , jx     	, sizeof(double)*VL_GLO*size_jx      , cudaMemcpyHostToDevice) );
-
-    /* Copy arrays from host memory to device memory for Rosenbrock */    
-    gpuErrchk( cudaMemcpy(d_absTol, absTol, sizeof(double)*NVAR, cudaMemcpyHostToDevice) );
-    gpuErrchk( cudaMemcpy(d_relTol, relTol, sizeof(double)*NVAR, cudaMemcpyHostToDevice) );
-
-
     /* Compute execution configuration for update_rconst */
     int block_size, grid_size;
     
     block_size = BLOCKSIZE;
     grid_size = (VL_GLO + block_size - 1)/block_size;  
     dim3 dimBlock(block_size);
-    dim3 dimGrid(grid_size);
 
-
-    /* Execute the kernel */
-    //update_rconst<<<dimGrid,dimBlock>>>(d_conc, d_khet_st, d_khet_tr, d_jx, VL_GLO); 
-
-    GPU_DEBUG();
- 
 //  *------------------------------------------------------*
 //  |    Default values vs input settings (icntrl, rcntrl) |
 //  *------------------------------------------------------*
@@ -1282,11 +1299,52 @@ extern "C" void kpp_integrate_cuda_( int *pe_p, int *sizes, double *time_step_le
     }
 
 
+    memcpy(h_absTol, absTol  , sizeof(double)*NVAR);
+    memcpy(h_relTol, relTol  , sizeof(double)*NVAR);
+    /* Copy arrays from host memory to device memory for Rosenbrock */    
+    gpuErrchk( cudaMemcpy(d_absTol, h_absTol, sizeof(double)*NVAR, cudaMemcpyHostToDevice) );
+    gpuErrchk( cudaMemcpy(d_relTol, h_relTol, sizeof(double)*NVAR, cudaMemcpyHostToDevice) );
+
+    /* Copy to staging area */
+    memcpy(h_conc, conc, sizeof(double)*VL_GLO*NSPEC);
+    memcpy(h_temp, temp, sizeof(double)*VL_GLO);
+    memcpy(h_press, press, sizeof(double)*VL_GLO);
+    memcpy(h_cair, cair, sizeof(double)*VL_GLO);
+    memcpy(h_khet_st, khet_st, sizeof(double)*VL_GLO*size_khet_st);
+    memcpy(h_khet_tr, khet_tr, sizeof(double)*VL_GLO*size_khet_tr);
+    memcpy(h_jx, jx, sizeof(double)*VL_GLO*size_jx);
+
+    dim3 dimGrid(nBlocks);
+    for (int i = 0; i < nStreams; ++i) {
+      int offset = i * streamSize;
+      // Dont read beyond what we have
+      int size = min(streamSize,VL_GLO-offset);
+
+      /* Copy data to staging area and subequently to device
+			 #TODO: allocate memory on host, so that this is
+       * not necessary TODO: put in concurrent loop */
+      gpuErrchk( cudaMemcpyAsync(&d_conc[offset*NSPEC], &h_conc[offset*NSPEC], sizeof(double)*size*NSPEC, cudaMemcpyHostToDevice, stream[i]) );
+
+      gpuErrchk( cudaMemcpyAsync(&temp_gpu[offset]  , &h_temp[offset]    , sizeof(double)*size  , cudaMemcpyHostToDevice,stream[i]));
+      gpuErrchk( cudaMemcpyAsync(&press_gpu[offset] , &h_press[offset]   , sizeof(double)*size  , cudaMemcpyHostToDevice,stream[i]));
+      gpuErrchk( cudaMemcpyAsync(&cair_gpu[offset]  , &h_cair[offset]    , sizeof(double)*size , cudaMemcpyHostToDevice,stream[i] ));
+
+      gpuErrchk( cudaMemcpyAsync(&d_khet_st[offset*size_khet_st] , &h_khet_st[offset*size_khet_st] , sizeof(double)*size*size_khet_st , cudaMemcpyHostToDevice, stream[i] ));
+      gpuErrchk( cudaMemcpyAsync(&d_khet_tr[offset*size_khet_tr] , &h_khet_tr[offset*size_khet_tr] , sizeof(double)*size*size_khet_tr , cudaMemcpyHostToDevice, stream[i] ));
+      gpuErrchk( cudaMemcpyAsync(&d_jx[offset*size_jx]      , &h_jx[offset*size_jx]      , sizeof(double)*size*size_jx  , cudaMemcpyHostToDevice, stream[i] ));
+
+    /* Execute the kernel */
+    //update_rconst<<<dimGrid,dimBlock>>>(d_conc, d_khet_st, d_khet_tr, d_jx, VL_GLO); 
+}
+cudaDeviceSynchronize();
+    for (int i = 0; i < nStreams; ++i) {
+      int offset = i * streamSize;
+ 
     =#=#=#=#=#=#=#=#=#=#=call_kernel=#=#=#=#=#=#=#=#=#=#=
 
-    GPU_DEBUG();
+		}
+cudaDeviceSynchronize();
 
-    
     reduce_istatus_1<<<REDUCTION_SIZE_2,REDUCTION_SIZE_1>>>(d_istatus, d_tmp_out_1, d_tmp_out_2, VL_GLO, d_xNacc, d_xNrej);
 
 
