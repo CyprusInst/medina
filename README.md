@@ -9,7 +9,7 @@ For assistance or to report problems please contact:* christoudias@cyi.ac.cy
  
 ## 1. Requirements:
 
-Software: CUDA compiler and python are required for the pre-processor. 
+Software: CUDA compiler and python3 are required for the pre-processor. 
 
 Hardware: CUDA compatible GPU (Fermi, Kepler, Pascal, Volta, or later). 
 
