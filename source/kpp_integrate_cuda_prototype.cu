@@ -88,7 +88,7 @@
 
 
 /* Enable debug flags for GPU */
-#define DEBUG
+//#define DEBUG
 
 #ifdef DEBUG
 #define GPU_DEBUG()\

@@ -21,7 +21,7 @@ echo "=================> STEP 2: Running script. <=================="
 (
 #set -x
 cd messy/util/medina
-python2 ./f2c_alpha.py -r 1 -g 1 -s "../../smcl/" > /dev/null
+python ./f2c_alpha.py -r 1 -g 1 -s "../../smcl/" > /dev/null
 )
 
 status=$?
@@ -35,7 +35,7 @@ echo "==========> STEP 3: Compiling the output files. <============="
 (
 #set -x
 cd messy/smcl
-nvcc -DDEBUG -O0 -c messy_mecca_kpp_acc.cu  2>&1  | grep error
+nvcc -O0 -DDEBUG -c messy_mecca_kpp_acc.cu  2>&1  | grep error
 )
 
 status=$?
@@ -44,15 +44,20 @@ if [ $status == 0 ]; then
        exit -1
 fi
 
-echo "============> STEP 4: Running the application. <=============="
-
+echo "============> STEP 4: Running CUDA memory check <=============="
 
 (
 #set -x
 cat ./raw/main.c >> ./messy/smcl/messy_mecca_kpp_acc.cu
 cd messy/smcl
-nvcc -O1  -DDEBUG -lineinfo messy_mecca_kpp_acc.cu --keep --keep-dir ./temp_files  2>&1  | grep error
+nvcc -O1 -lineinfo messy_mecca_kpp_acc.cu --keep --keep-dir ./temp_files  2>&1  | grep error
 cuda-memcheck ./a.out | grep -v "Results"
+)
+
+echo "============> STEP 5: Running the application. <=============="
+(
+#set -x
+cd messy/smcl
 nvcc -O1  messy_mecca_kpp_acc.cu --keep --keep-dir ./temp_files  2>&1  | grep error
 ./a.out | grep -v "Results"
 ./a.out | grep "Results" | sed -e "s/Results://g" > res_gpu.txt
@@ -67,7 +72,7 @@ fi
 
 
 
-echo "======> STEP 5: Compiling original version in FORTRAN. <======"
+echo "======> STEP 6: Compiling original version in FORTRAN. <======"
 
 
 (
@@ -85,14 +90,14 @@ gfortran -g *o  -lm
 )
 
 
-echo "==========> STEP 6: Comparing the output results. <==========="
+echo "==========> STEP 7: Comparing the output results. <==========="
 
 (
 #set -x
-python2 compare.py ./messy/fortran/res_fortran.txt messy/smcl/res_gpu.txt | grep "Element\|<<<<<<===== WARNING"
+python compare.py ./messy/fortran/res_fortran.txt messy/smcl/res_gpu.txt | grep "Element\|<<<<<<===== WARNING"
 )
 
-echo "===========> STEP 7: Cleaning up the directories. <==========="
+echo "===========> STEP 8: Cleaning up the directories. <==========="
 
 
 (
@@ -106,6 +111,6 @@ cd ../util/
 rm -rf ./*
 )
 
-echo "====> Testing Finished"
+echo "====> Testing Completed"
 
 #EOF
