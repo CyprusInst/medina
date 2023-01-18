@@ -16,9 +16,10 @@ def readData(data,fname):
 
 
 def calcDiff(data1,data2):
-    print "[Element] : [diff value] - [diff relative %]  "
+    print("Elements with greater than 5% diff (if any):")
+    print("[Element] : [diff value] - [diff relative %]  ")
     val = ""
-    for i in xrange(1,len(data1)):
+    for i in range(1,len(data1)):
         val = str(i) + ": " + str(abs(data1[i] - data2[i])) + " "
         calc = 0 
         if (data1[i]!=0):
@@ -26,10 +27,10 @@ def calcDiff(data1,data2):
             val = val +  str(abs(data1[i] - data2[i])/data1[i]) + " "
             if (calc > 5):
                 val = val + " <<<<<<===== WARNING over 5% diff: " + str(abs(data1[i] - data2[i]))
-            print  val
+            print(val)
         val = ""
         if (i%74==0):
-            print  "-------------------"
+            print("-------------------")
 
 
 data1 = [0 for y in range(400)] 
