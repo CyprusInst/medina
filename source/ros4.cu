@@ -13,9 +13,10 @@ __device__  static  int ros_Integrator_ros4(double * __restrict__ var, const dou
         const double * __restrict__ khet_st, const double * __restrict__ khet_tr,
         const double * __restrict__ jx,
         // VL_GLO
-        const int VL_GLO)
+        const int VL_GLO,
+        const int offset)
 {
-    int index = blockIdx.x*blockDim.x+threadIdx.x;
+    int index = blockIdx.x*blockDim.x+threadIdx.x + offset;
 
     double H, Hnew, HC, HG, Fac; // Tau - not used
     double Err; //*varErr;
@@ -249,9 +250,9 @@ void Rosenbrock_ros4(double * __restrict__ conc, const double Tstart, const doub
                 const double * __restrict__ temp_gpu,
                 const double * __restrict__ press_gpu,
                 const double * __restrict__ cair_gpu,
-                const int VL_GLO)
+                const int VL_GLO, const int offset)
 {
-    int index = blockIdx.x*blockDim.x+threadIdx.x;
+    int index = blockIdx.x*blockDim.x+threadIdx.x + offset;
 
 
     /* 
@@ -302,7 +303,7 @@ void Rosenbrock_ros4(double * __restrict__ conc, const double Tstart, const doub
         for (int i=0; i<NFIX; i++)
             fix(index,i) = conc(index,NVAR+i);
 
-        update_rconst(var, khet_st, khet_tr, jx, rconst, temp_gpu, press_gpu, cair_gpu, VL_GLO); 
+        update_rconst(var, khet_st, khet_tr, jx, rconst, temp_gpu, press_gpu, cair_gpu, VL_GLO, offset); 
 
         ros_Integrator_ros4(var, fix, Tstart, Tend, Texit,
                 //  Integration parameters
@@ -316,7 +317,7 @@ void Rosenbrock_ros4(double * __restrict__ conc, const double Tstart, const doub
                 K, dFdT, jac0, Ghimj,  varErr, 
                 // For update rconst
                 khet_st, khet_tr, jx,
-                VL_GLO
+                VL_GLO, offset
                 );
 
         for (int i=0; i<NVAR; i++)

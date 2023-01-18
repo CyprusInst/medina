@@ -399,9 +399,9 @@ def generate_update_rconst(rconst_ops,rconst_decls,locals,rcint):
 			       const double * __restrict__ temp_gpu, \n\
 			       const double * __restrict__ press_gpu, \n\
 			       const double * __restrict__ cair_gpu, \n\
-			       const int VL_GLO)\n")
+			       const int VL_GLO, const int offset)\n")
     update_rconst.append("{\n")
-    update_rconst.append("    int index = blockIdx.x*blockDim.x+threadIdx.x;\n\n")
+    update_rconst.append("    int index = blockIdx.x*blockDim.x+threadIdx.x+offset;\n\n")
     update_rconst.append("    /* Set local buffer */\n")
     update_rconst.append("\n")
     update_rconst.append("    {\n")
@@ -436,7 +436,6 @@ def generate_kppsolve(source):
     kppsolve.append("__device__ void kppSolve(const double * __restrict__ Ghimj, double * __restrict__ K, \n\
                          const int istage, const int ros_S )")
     kppsolve.append("{\n")
-    kppsolve.append("    int index = blockIdx.x*blockDim.x+threadIdx.x;\n")
     kppsolve.append("\n")
     kppsolve.append("       K = &K[istage*NVAR];\n")
     kppsolve.append("\n")
@@ -546,7 +545,6 @@ def generate_jac_sp(source,NBSIZE):
     jac_sp.append("__device__ void Jac_sp(const double * __restrict__ var, const double * __restrict__ fix,\n\
                  const double * __restrict__ rconst, double * __restrict__ jcb, int &Njac, const int VL_GLO)\n")
     jac_sp.append("{\n")
-    jac_sp.append("    int index = blockIdx.x*blockDim.x+threadIdx.x;\n")
 
     jac_sp.append("\n")
     jac_sp.append(" double dummy")
@@ -578,7 +576,6 @@ def generate_fun(source,NREACT):
     fun = []
     fun.append("__device__ void Fun(double *var, const double * __restrict__ fix, const double * __restrict__ rconst, double *varDot, int &Nfun, const int VL_GLO)")
     fun.append("{\n")
-    fun.append("    int index = blockIdx.x*blockDim.x+threadIdx.x;\n")
     fun.append("\n")
     fun.append("    Nfun++;\n")
     fun.append("\n")
@@ -802,7 +799,6 @@ def generate_prepareMatrix(lu_diag):
     prepareMatrix = []
     prepareMatrix.append("__device__ void ros_PrepareMatrix(double &H, int direction, double gam, double *jac0, double *Ghimj,  int &Nsng, int &Ndec, int VL_GLO)\n")
     prepareMatrix.append("{\n")
-    prepareMatrix.append("    int index = blockIdx.x*blockDim.x+threadIdx.x;\n")
     prepareMatrix.append("    int ising, nConsecutive;\n")
     prepareMatrix.append("    double ghinv;\n")
     prepareMatrix.append("    \n")
@@ -861,7 +857,7 @@ def generate_special_ros_caller(ros):
 
     roscall = []
 
-    default_call = '      Rosenbrock<<<dimGrid,dimBlock>>>(d_conc, Tstart, Tend, d_rstatus, d_istatus,\n\
+    default_call = '      Rosenbrock<<<dimGrid,dimBlock, 0, stream[i]>>>(d_conc, Tstart, Tend, d_rstatus, d_istatus,\n\
                     // values calculated from icntrl and rcntrl at host\n\
                     autonomous, vectorTol, UplimTol, method, Max_no_steps,\n\
                     d_jac0, d_Ghimj,d_varNew, d_K, d_varErr, d_dFdT, d_Fcn0, d_var, d_fix, d_rconst,\n\
@@ -872,19 +868,19 @@ def generate_special_ros_caller(ros):
                     // Global input arrays\n\
                     temp_gpu, press_gpu, cair_gpu, \n\
                     // extra - vector lenght and processor\n\
-                    VL_GLO); '
+                    VL_GLO, offset); '
 
     if ( ros == '2'):
         rosscall = '     switch (method){\n\
         case 1:\n\
-            Rosenbrock_ros2<<<dimGrid,dimBlock>>>(d_conc, Tstart, Tend, d_rstatus, d_istatus,\n\
+            Rosenbrock_ros2<<<dimGrid,dimBlock, 0, stream[i]>>>(d_conc, Tstart, Tend, d_rstatus, d_istatus,\n\
                     autonomous, vectorTol, UplimTol, Max_no_steps,\n\
                     d_jac0, d_Ghimj,d_varNew, d_K, d_varErr, d_dFdT, d_Fcn0, d_var, d_fix, d_rconst,\n\
                     Hmin, Hmax, Hstart, FacMin, FacMax, FacRej, FacSafe, roundoff,\n\
                     d_absTol, d_relTol,\n\
                     d_khet_st, d_khet_tr, d_jx, \n\
                     temp_gpu, press_gpu, cair_gpu, \n\
-                    VL_GLO);\n\
+                    VL_GLO, offset);\n\
             break;\n\
         default: \n' + default_call + '\n\
         \n\
@@ -894,14 +890,14 @@ def generate_special_ros_caller(ros):
     elif (ros == '3'):
         rosscall = '      switch (method){\n\
         case 2:\n\
-            Rosenbrock_ros3<<<dimGrid,dimBlock>>>(d_conc, Tstart, Tend, d_rstatus, d_istatus,\n\
+            Rosenbrock_ros3<<<dimGrid,dimBlock, 0, stream[i]>>>(d_conc, Tstart, Tend, d_rstatus, d_istatus,\n\
                     autonomous, vectorTol, UplimTol, Max_no_steps,\n\
                     d_jac0, d_Ghimj,d_varNew, d_K, d_varErr, d_dFdT, d_Fcn0, d_var, d_fix, d_rconst,\n\
                     Hmin, Hmax, Hstart, FacMin, FacMax, FacRej, FacSafe, roundoff,\n\
                     d_absTol, d_relTol,\n\
                     d_khet_st, d_khet_tr, d_jx, \n\
                     temp_gpu, press_gpu, cair_gpu, \n\
-                    VL_GLO);\n\
+                    VL_GLO, offset);\n\
             break;\n\
         default: \n' + default_call + '\n\
         \n\
@@ -912,14 +908,14 @@ def generate_special_ros_caller(ros):
     elif (ros == '4'):
         rosscall = '      switch (method){\n\
         case 3:\n\
-            Rosenbrock_ros4<<<dimGrid,dimBlock>>>(d_conc, Tstart, Tend, d_rstatus, d_istatus,\n\
+            Rosenbrock_ros4<<<dimGrid,dimBlock, 0, stream[i]>>>(d_conc, Tstart, Tend, d_rstatus, d_istatus,\n\
                     autonomous, vectorTol, UplimTol, Max_no_steps,\n\
                     d_jac0, d_Ghimj,d_varNew, d_K, d_varErr, d_dFdT, d_Fcn0, d_var, d_fix, d_rconst,\n\
                     Hmin, Hmax, Hstart, FacMin, FacMax, FacRej, FacSafe, roundoff,\n\
                     d_absTol, d_relTol,\n\
                     d_khet_st, d_khet_tr, d_jx, \n\
                     temp_gpu, press_gpu, cair_gpu, \n\
-                    VL_GLO);\n\
+                    VL_GLO, offset);\n\
             break;\n\
         default: \n' + default_call + '\n\
         \n\
@@ -930,14 +926,14 @@ def generate_special_ros_caller(ros):
     elif (ros == '5'):
         rosscall = '      switch (method){\n\
         case 4:\n\
-            Rosenbrock_rodas3<<<dimGrid,dimBlock>>>(d_conc, Tstart, Tend, d_rstatus, d_istatus,\n\
+            Rosenbrock_rodas3<<<dimGrid,dimBlock, 0, stream[i]>>>(d_conc, Tstart, Tend, d_rstatus, d_istatus,\n\
                     autonomous, vectorTol, UplimTol, Max_no_steps,\n\
                     d_jac0, d_Ghimj,d_varNew, d_K, d_varErr, d_dFdT, d_Fcn0, d_var, d_fix, d_rconst,\n\
                     Hmin, Hmax, Hstart, FacMin, FacMax, FacRej, FacSafe, roundoff,\n\
                     d_absTol, d_relTol,\n\
                     d_khet_st, d_khet_tr, d_jx, \n\
                     temp_gpu, press_gpu, cair_gpu, \n\
-                    VL_GLO);\n\
+                    VL_GLO, offset);\n\
             break;\n\
         default: \n' + default_call + '\n\
         \n\
@@ -948,14 +944,14 @@ def generate_special_ros_caller(ros):
     elif (ros == '6'):
         rosscall = '      switch (method){\n\
         case 5:\n\
-            Rosenbrock_rodas4<<<dimGrid,dimBlock>>>(d_conc, Tstart, Tend, d_rstatus, d_istatus,\n\
+            Rosenbrock_rodas4<<<dimGrid,dimBlock, 0, stream[i]>>>(d_conc, Tstart, Tend, d_rstatus, d_istatus,\n\
                     autonomous, vectorTol, UplimTol, Max_no_steps,\n\
                     d_jac0, d_Ghimj,d_varNew, d_K, d_varErr, d_dFdT, d_Fcn0, d_var, d_fix, d_rconst,\n\
                     Hmin, Hmax, Hstart, FacMin, FacMax, FacRej, FacSafe, roundoff,\n\
                     d_absTol, d_relTol,\n\
                     d_khet_st, d_khet_tr, d_jx, \n\
                     temp_gpu, press_gpu, cair_gpu, \n\
-                    VL_GLO);\n\
+                    VL_GLO, offset);\n\
             break;\n\
         default: \n' + default_call + '\n\
         \n\
