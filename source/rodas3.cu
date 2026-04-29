@@ -2,24 +2,24 @@
 __device__  static  int ros_Integrator_rodas3(REAL * __restrict__ var, const REAL * __restrict__ fix, const REAL Tstart, const REAL Tend, REAL &T,
 
         //  Integration parameters
-        const int autonomous, const int vectorTol, const int Max_no_steps, 
-        const REAL roundoff, const REAL Hmin, const REAL Hmax, const REAL Hstart, REAL &Hexit, 
-        const REAL FacMin, const REAL FacMax, const REAL FacRej, const REAL FacSafe, 
+        const int autonomous, const int vectorTol, const int Max_no_steps,
+        const REAL roundoff, const REAL Hmin, const REAL Hmax, const REAL Hstart, REAL &Hexit,
+        const REAL FacMin, const REAL FacMax, const REAL FacRej, const REAL FacSafe, const REAL kk, const REAL bb,
         //  Status parameters
         int &Nfun, int &Njac, int &Nstp, int &Nacc, int &Nrej, int &Ndec, int &Nsol, int &Nsng,
-        //  cuda global mem buffers              
-        const REAL * __restrict__ rconst,  const REAL * __restrict__ absTol, const REAL * __restrict__ relTol, REAL * __restrict__ varNew, REAL * __restrict__ Fcn0, 
+        //  cuda global mem buffers
+        REAL * __restrict__ rconst,  const REAL * __restrict__ absTol, const REAL * __restrict__ relTol, REAL * __restrict__ varNew, REAL * __restrict__ Fcn0,
         REAL * __restrict__ K, REAL * __restrict__ dFdT, REAL * __restrict__ jac0, REAL * __restrict__ Ghimj, REAL * __restrict__ varErr,
         // for update_rconst
         const REAL * __restrict__ khet_st, const REAL * __restrict__ khet_tr,
-        const REAL * __restrict__ jx,
+        const REAL * __restrict__ jx, const REAL * __restrict__ temp_gpu, const REAL * __restrict__ press_gpu, const REAL * __restrict__ cair_gpu,
         // VL_GLO
         const int VL_GLO)
 {
     int index = blockIdx.x*blockDim.x+threadIdx.x;
 
     REAL H, Hnew, HC, HG, Fac; // Tau - not used
-    REAL Err; //*varErr;
+    REAL Err, ErrOld = 1., FacOld = 1.; //*varErr;
     int direction;
     int rejectLastH, rejectMoreH;
     const REAL DELTAMIN = 1.0E-5;
@@ -117,7 +117,7 @@ __device__  static  int ros_Integrator_rodas3(REAL * __restrict__ var, const REA
 
         //   ~~~>  Compute the function derivative with respect to T
         if (!autonomous)
-            ros_FunTimeDerivative(T, roundoff, var, fix, rconst, dFdT, Fcn0, Nfun, khet_st, khet_tr, jx,  VL_GLO); /// VAR READ - fcn0 read
+            ros_FunTimeDerivative(T, roundoff, var, fix, rconst, dFdT, Fcn0, Nfun, khet_st, khet_tr, jx, temp_gpu, press_gpu, cair_gpu, VL_GLO); /// VAR READ - fcn0 read
 
         //   ~~~>   Compute the Jacobian at current time
         Jac_sp(var, fix, rconst, jac0, Njac, VL_GLO);   /// VAR READ 
@@ -142,7 +142,7 @@ __device__  static  int ros_Integrator_rodas3(REAL * __restrict__ var, const REA
 		     }
                 }
 		//	   R   ,RW, RW,  R,        R 
-                ros_Solve(Ghimj, K, Nsol, istage, ros_S);
+                ros_Solve(Ghimj, K, Nsol, istage, ros_S, VL_GLO);
             } // Stage
 
            #pragma unroll
@@ -189,7 +189,7 @@ __device__  static  int ros_Integrator_rodas3(REAL * __restrict__ var, const REA
 		     }
                 }
 		//	   R   ,RW, RW,  R,        R 
-                ros_Solve(Ghimj, K, Nsol, istage, ros_S);
+                ros_Solve(Ghimj, K, Nsol, istage, ros_S, VL_GLO);
             } // Stage
 
 
@@ -254,11 +254,13 @@ __device__  static  int ros_Integrator_rodas3(REAL * __restrict__ var, const REA
 __global__ 
 void Rosenbrock_rodas3(REAL * __restrict__ conc, const REAL Tstart, const REAL Tend, REAL * __restrict__ rstatus, int * __restrict__ istatus,
                 const int autonomous, const int vectorTol, const int UplimTol, const int Max_no_steps,
-                REAL * __restrict__ d_jac0, REAL * __restrict__ d_Ghimj, REAL * __restrict__ d_varNew, REAL * __restrict__ d_K, REAL * __restrict__ d_varErr,REAL * __restrict__ d_dFdT ,REAL * __restrict__ d_Fcn0, REAL * __restrict__ d_var, REAL * __restrict__ d_fix, REAL * __restrict__ d_rconst,
-                const REAL Hmin, const REAL Hmax, const REAL Hstart, const REAL FacMin, const REAL FacMax, const REAL FacRej, const REAL FacSafe, const REAL roundoff,
+#ifdef REDUCE
+                REAL * __restrict__ d_jac0, REAL * __restrict__ d_Ghimj, REAL * __restrict__ d_varNew, REAL * __restrict__ d_K, REAL * __restrict__ d_varErr,REAL * __restrict__ d_dFdT ,REAL * __restrict__ d_Fcn0,
+#endif
+                const REAL Hmin, const REAL Hmax, const REAL Hstart, const REAL FacMin, const REAL FacMax, const REAL FacRej, const REAL FacSafe, const REAL roundoff, const REAL kk, const REAL bb,
                 const REAL * __restrict__ absTol, const REAL * __restrict__ relTol,
-    	        const REAL * __restrict__ khet_st, const REAL * __restrict__ khet_tr,
-		const REAL * __restrict__ jx,
+                const REAL * __restrict__ khet_st, const REAL * __restrict__ khet_tr,
+                const REAL * __restrict__ jx,
                 const REAL * __restrict__ temp_gpu,
                 const REAL * __restrict__ press_gpu,
                 const REAL * __restrict__ cair_gpu,
@@ -274,16 +276,40 @@ void Rosenbrock_rodas3(REAL * __restrict__ conc, const REAL Tstart, const REAL T
      *  optimize accesses. 
      *
      */
-    REAL *Ghimj  = &d_Ghimj[index*LU_NONZERO];    
-    REAL *K      = &d_K[index*NVAR*3];
+#ifdef REDUCE
+    REAL *Ghimj  = &d_Ghimj;
+    REAL *K      = &d_K;
     REAL *varNew = &d_varNew[index*NVAR];
     REAL *Fcn0   = &d_Fcn0[index*NVAR];
     REAL *dFdT   = &d_dFdT[index*NVAR];
-    REAL *jac0   = &d_jac0[index*LU_NONZERO];
+    REAL *jac0   = &d_jac0;
     REAL *varErr = &d_varErr[index*NVAR];
-    REAL *var    = &d_var[index*NSPEC];
-    REAL *fix    = &d_fix[index*NFIX];
-    REAL *rconst = &d_rconst[index*NREACT];
+#else
+    REAL varNew_stack[NVAR];
+    REAL varErr_stack[NVAR];
+    REAL Fcn0_stack[NVAR];
+    REAL jac0_stack[LU_NONZERO];
+    REAL dFdT_stack[NVAR];
+    REAL Ghimj_stack[LU_NONZERO];
+    REAL K_stack[4*NVAR];
+
+    /* Allocated in stack */
+    REAL *Ghimj  = Ghimj_stack;
+    REAL *K      = K_stack;
+    REAL *varNew = varNew_stack;
+    REAL *Fcn0   = Fcn0_stack;
+    REAL *dFdT   = dFdT_stack;
+    REAL *jac0   = jac0_stack;
+    REAL *varErr = varErr_stack;
+#endif
+
+    /* Temporary arrays allocated in stack */
+    REAL var_stack[NSPEC];
+    REAL fix_stack[NFIX];
+    REAL rconst_stack[NREACT];
+    REAL *var    = var_stack;
+    REAL *fix    = fix_stack;
+    REAL *rconst = rconst_stack;
 
     if (index < VL_GLO)
     {
@@ -303,15 +329,15 @@ void Rosenbrock_rodas3(REAL * __restrict__ conc, const REAL Tstart, const REAL T
         const int method = 4; 
 
         /* FIXME: add check for method */
-        const REAL *ros_A     = &ros[method-1].ros_A[0]; 
+        const REAL *ros_A     = &ros[method-1].ros_A[0];
         const REAL *ros_C     = &ros[method-1].ros_C[0];
-        const REAL *ros_M     = &ros[method-1].ros_M[0]; 
+        const REAL *ros_M     = &ros[method-1].ros_M[0];
         const REAL *ros_E     = &ros[method-1].ros_E[0];
-        const REAL *ros_Alpha = &ros[method-1].ros_Alpha[0]; 
-        const REAL *ros_Gamma = &ros[method-1].ros_Gamma[0]; 
+        const REAL *ros_Alpha = &ros[method-1].ros_Alpha[0];
+        const REAL *ros_Gamma = &ros[method-1].ros_Gamma[0];
         const int    *ros_NewF  = &ros[method-1].ros_NewF[0];
-        const int     ros_S     =  ros[method-1].ros_S; 
-        const REAL  ros_ELO   =  ros[method-1].ros_ELO; 
+        const int     ros_S     =  ros[method-1].ros_S;
+        const REAL  ros_ELO   =  ros[method-1].ros_ELO;
 
 
         /* Copy data from global memory to temporary array */
@@ -334,14 +360,14 @@ void Rosenbrock_rodas3(REAL * __restrict__ conc, const REAL Tstart, const REAL T
                 //  Integration parameters
                 autonomous, vectorTol, Max_no_steps, 
                 roundoff, Hmin, Hmax, Hstart, Hexit, 
-                FacMin, FacMax, FacRej, FacSafe,
+                FacMin, FacMax, FacRej, FacSafe, kk, bb,
                 //  Status parameters
                 Nfun, Njac, Nstp, Nacc, Nrej, Ndec, Nsol, Nsng,
                 //  cuda global mem buffers              
                 rconst, absTol, relTol, varNew, Fcn0,  
                 K, dFdT, jac0, Ghimj,  varErr, 
                 // For update rconst
-                khet_st, khet_tr, jx,
+                khet_st, khet_tr, jx, temp_gpu, press_gpu, cair_gpu,
                 VL_GLO
                 );
 

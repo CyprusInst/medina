@@ -3,10 +3,11 @@
 #
 # MECCA - KPP Fortran to CUDA parser
 #
-# Copyright 2016-2020 The Cyprus Institute
+# Copyright 2016-2026 The Cyprus Institute
 #
 # Developers: Michail Alvanos - m.alvanos@cyi.ac.cy
 #             Theodoros Christoudias - christoudias@cyi.ac.cy
+#             Kyriakos Sofokleous
 #             Giannis Ashiotis
 #
 #########################################################################################################
@@ -393,23 +394,23 @@ def generate_update_rconst(rconst_ops,rconst_decls,locals,rcint):
 
 
     update_rconst.append( \
-    "__device__ void  update_rconst(const double * __restrict__ var, \n \
-			       const double * __restrict__ khet_st, const double * __restrict__ khet_tr,\n \
-			       const double * __restrict__ jx, double * __restrict__ rconst, \n\
-			       const double * __restrict__ temp_gpu, \n\
-			       const double * __restrict__ press_gpu, \n\
-			       const double * __restrict__ cair_gpu, \n\
+    "__device__ void  update_rconst(const REAL * __restrict__ var, \n \
+			       const REAL * __restrict__ khet_st, const REAL * __restrict__ khet_tr,\n \
+			       const REAL * __restrict__ jx, REAL * __restrict__ rconst, \n\
+			       const REAL * __restrict__ temp_gpu, \n\
+			       const REAL * __restrict__ press_gpu, \n\
+			       const REAL * __restrict__ cair_gpu, \n\
 			       const int VL_GLO)\n")
     update_rconst.append("{\n")
     update_rconst.append("    int index = blockIdx.x*blockDim.x+threadIdx.x;\n\n")
     update_rconst.append("    /* Set local buffer */\n")
     update_rconst.append("\n")
     update_rconst.append("    {\n")
-    update_rconst.append("        const double temp_loc  = temp_gpu[index];\n")
-    update_rconst.append("        const double press_loc = press_gpu[index];\n")
-    update_rconst.append("        const double cair_loc  = cair_gpu[index];\n")
+    update_rconst.append("        const REAL temp_loc  = temp_gpu[index];\n")
+    update_rconst.append("        const REAL press_loc = press_gpu[index];\n")
+    update_rconst.append("        const REAL cair_loc  = cair_gpu[index];\n")
     update_rconst.append("\n")
-    line = "        double"
+    line = "        REAL"
     for i in locals:
         line = line+" "+i+","
     line = line[:-1]+";\n"
@@ -433,7 +434,7 @@ pass
 
 def generate_kppsolve(source):
     kppsolve=[]
-    kppsolve.append("__device__ void kppSolve(const double * __restrict__ Ghimj, double * __restrict__ K, \n\
+    kppsolve.append("__device__ void kppSolve(const REAL * __restrict__ Ghimj, REAL * __restrict__ K, \n\
                          const int istage, const int ros_S )")
     kppsolve.append("{\n")
     kppsolve.append("    int index = blockIdx.x*blockDim.x+threadIdx.x;\n")
@@ -455,12 +456,12 @@ pass
 
 def generate_kppDecomp(source,NSPEC,lu_diag,lu_crow,lu_icol):
     kppDecomp = []
-    kppDecomp.append("__device__ void kppDecomp(double *Ghimj, int VL_GLO)\n")
+    kppDecomp.append("__device__ void kppDecomp(REAL *Ghimj, int VL_GLO)\n")
     kppDecomp.append("{\n")
-    kppDecomp.append("    double a=0.0;\n")
+    kppDecomp.append("    REAL a=0.0;\n")
 
     kppDecomp.append("\n")
-    kppDecomp.append(" double dummy")
+    kppDecomp.append(" REAL dummy")
     for var in range(NSPEC):
         kppDecomp.append(", W_" + str(var))
     kppDecomp.append(";\n\n")
@@ -505,11 +506,11 @@ def generate_kppDecompIndirect(source,NSPEC,lu_diag,lu_crow,lu_icol):
 
 
     kppDecomp.append("\n")
-    kppDecomp.append("__device__ void kppDecomp(double *Ghimj, const int VL_GLO)\n")
+    kppDecomp.append("__device__ void kppDecomp(REAL *Ghimj, const int VL_GLO)\n")
     kppDecomp.append("{\n")
-    kppDecomp.append("    double a=0.0;\n")
+    kppDecomp.append("    REAL a=0.0;\n")
     kppDecomp.append("    int k, kk, j, jj;\n")
-    kppDecomp.append("    double W[" + str(NSPEC) +"];\n")
+    kppDecomp.append("    REAL W[" + str(NSPEC) +"];\n")
 
     kppDecomp.append("\n")
 
@@ -543,13 +544,13 @@ pass
 
 def generate_jac_sp(source,NBSIZE):
     jac_sp = []
-    jac_sp.append("__device__ void Jac_sp(const double * __restrict__ var, const double * __restrict__ fix,\n\
-                 const double * __restrict__ rconst, double * __restrict__ jcb, int &Njac, const int VL_GLO)\n")
+    jac_sp.append("__device__ void Jac_sp(const REAL * __restrict__ var, const REAL * __restrict__ fix,\n\
+                 const REAL * __restrict__ rconst, REAL * __restrict__ jcb, int &Njac, const int VL_GLO)\n")
     jac_sp.append("{\n")
     jac_sp.append("    int index = blockIdx.x*blockDim.x+threadIdx.x;\n")
 
     jac_sp.append("\n")
-    jac_sp.append(" double dummy")
+    jac_sp.append(" REAL dummy")
     for var in range(NBSIZE):
         jac_sp.append(", B_" + str(var))
     jac_sp.append(";\n\n")
@@ -576,14 +577,14 @@ pass
 #########################################################################################################
 def generate_fun(source,NREACT):
     fun = []
-    fun.append("__device__ void Fun(double *var, const double * __restrict__ fix, const double * __restrict__ rconst, double *varDot, int &Nfun, const int VL_GLO)")
+    fun.append("__device__ void Fun(REAL *var, const REAL * __restrict__ fix, const REAL * __restrict__ rconst, REAL *varDot, int &Nfun, const int VL_GLO)")
     fun.append("{\n")
     fun.append("    int index = blockIdx.x*blockDim.x+threadIdx.x;\n")
     fun.append("\n")
     fun.append("    Nfun++;\n")
     fun.append("\n")
 
-    fun.append(" double dummy")
+    fun.append(" REAL dummy")
     for var in range(NREACT):
         fun.append(", A_" + str(var))
     fun.append(";\n\n")
@@ -800,11 +801,11 @@ def find_LU_ICOL(file_in, NVAR):
 
 def generate_prepareMatrix(lu_diag):
     prepareMatrix = []
-    prepareMatrix.append("__device__ void ros_PrepareMatrix(double &H, int direction, double gam, double *jac0, double *Ghimj,  int &Nsng, int &Ndec, int VL_GLO)\n")
+    prepareMatrix.append("__device__ void ros_PrepareMatrix(REAL &H, int direction, REAL gam, REAL *jac0, REAL *Ghimj,  int &Nsng, int &Ndec, int VL_GLO)\n")
     prepareMatrix.append("{\n")
     prepareMatrix.append("    int index = blockIdx.x*blockDim.x+threadIdx.x;\n")
     prepareMatrix.append("    int ising, nConsecutive;\n")
-    prepareMatrix.append("    double ghinv;\n")
+    prepareMatrix.append("    REAL ghinv;\n")
     prepareMatrix.append("    \n")
     prepareMatrix.append("        ghinv = ONE/(direction*H*gam);\n")
     prepareMatrix.append("        for (int i=0; i<LU_NONZERO; i++)\n")
@@ -861,18 +862,33 @@ def generate_special_ros_caller(ros):
 
     roscall = []
 
-    default_call = '      Rosenbrock<<<dimGrid,dimBlock>>>(d_conc, Tstart, Tend, d_rstatus, d_istatus,\n\
-                    // values calculated from icntrl and rcntrl at host\n\
-                    autonomous, vectorTol, UplimTol, method, Max_no_steps,\n\
-                    d_jac0, d_Ghimj,d_varNew, d_K, d_varErr, d_dFdT, d_Fcn0, d_var, d_fix, d_rconst,\n\
+    default_call = '#if defined(__SINGLEPREC) \n\
+     Rosenbrock<<<dimGrid,dimBlock>>>(d_conc_s, Tstart, Tend, d_rstatus_s, d_istatus, \n\
+                    // values calculated from icntrl and rcntrl at host \n\
+                    autonomous, vectorTol, UplimTol, method, Max_no_steps, \n\
+                    d_jac0_s, d_Ghimj_s,d_varNew_s, d_K_s, d_varErr_s, d_dFdT_s, d_Fcn0_s, d_var_s, d_fix_s, d_rconst_s,\n\
                     Hmin, Hmax, Hstart, FacMin, FacMax, FacRej, FacSafe, roundoff,\n\
-                    //  cuda global mem buffers              \n\
-                    d_absTol, d_relTol,   \n\
+                    //  cuda global mem buffers               \n\
+                    d_absTol_s, d_relTol_s, \n\
+                    d_khet_st_s, d_khet_tr_s, d_jx_s, \n\
+                    // Global input arrays \n\
+                    temp_gpu_s, press_gpu_s, cair_gpu_s, \n\
+                    // extra - vector lenght and processor \n\
+                    VL_GLO); \n\
+     #else \n\
+     Rosenbrock<<<dimGrid,dimBlock>>>(d_conc, Tstart, Tend, d_rstatus, d_istatus, \n\
+                    // values calculated from icntrl and rcntrl at host \n\
+                    autonomous, vectorTol, UplimTol, method, Max_no_steps, \n\
+                    d_jac0, d_Ghimj,d_varNew, d_K, d_varErr, d_dFdT, d_Fcn0, d_var, d_fix, d_rconst, \n\
+                    Hmin, Hmax, Hstart, FacMin, FacMax, FacRej, FacSafe, roundoff, \n\
+                    //  cuda global mem buffers             \n\
+                    d_absTol, d_relTol, \n\
                     d_khet_st, d_khet_tr, d_jx, \n\
-                    // Global input arrays\n\
+                    // Global input arrays \n\
                     temp_gpu, press_gpu, cair_gpu, \n\
-                    // extra - vector lenght and processor\n\
-                    VL_GLO); '
+                    // extra - vector lenght and processor \n\
+                    VL_GLO); \n\
+     #endif'
 
     if ( ros == '2'):
         rosscall = '     switch (method){\n\
@@ -1346,11 +1362,15 @@ pass
 #########################################################################################################
 #########################################################################################################
 
-def add_cuda_compilation(file_specific,file_makefile,arch):
+def add_cuda_compilation(file_specific,file_makefile,arch,precision):
 
     file_makefile.seek(0)
-    out = "\nmessy_mecca_kpp_acc.o: messy_mecca_kpp_acc.cu specific.mk \n\
-\tnvcc  -v  --ptxas-options=-v  " + arch +"  --ftz=false --prec-div=true --prec-sqrt=true --fmad=false    -O3  -g   -c  $<"
+    if (precision.__eq__("Single Precision")):
+           out = "\nmessy_mecca_kpp_acc.o: messy_mecca_kpp_acc.cu specific.mk \n\
+\tnvcc  -v  --ptxas-options=-v  " + arch +"  --ftz=false --prec-div=true --prec-sqrt=true --fmad=false -D__SINGLEPREC --expt-relaxed-constexpr  -O3  -g   -c  $<" 
+    else:
+            out = "\nmessy_mecca_kpp_acc.o: messy_mecca_kpp_acc.cu specific.mk \n\
+\tnvcc  -v  --ptxas-options=-v  " + arch +"  --ftz=false --prec-div=true --prec-sqrt=true --fmad=false -O3  -g   -c  $<"
     file_specific.write(out)
 
 
@@ -1469,7 +1489,15 @@ def select_architecture(ans):
 
     return arch
 
-def print_menu_make_selection(ros,gpu):
+def select_precision(ans):
+    if ans=="1":
+        precision = "Single Precision"
+    else:
+        precision = "Double Precision"
+   
+    return precision
+
+def print_menu_make_selection(ros,gpu,prec):
 
     if gpu is None:
         print ("""
@@ -1508,8 +1536,25 @@ Select Rosenbrock solver (1-6):
     if ros not in ['1','2','3','4','5','6']:
         ros = "0"
 
-    print("Selected options: " + arch + " with ros: "  + ros + "\n")
-    return ros,arch
+    if prec is None:
+        print ("""
+
+Select Precision: 
+
+            1. Single Precision
+            2. Double Precision
+
+            """)
+
+        prec = input("Option (Default 2): ")
+
+    if prec not in ['1','2']:
+        prec = "2"
+
+    precision = select_precision(prec)
+    
+    print("Selected options: " + arch + " with ros: "  + ros + " and precision: " + precision + "\n")
+    return ros,arch,precision
 
 #########################################################################################################
 #########################################################################################################
@@ -1533,22 +1578,24 @@ parser = argparse.ArgumentParser(description='MEDINA: FORTRAN to CUDA KPP for EM
 parser.add_argument('-r', '--ros', help='An integer value of the Rosenbrock solver produced [1: all (selected at runtime), 2: Ros2, 3: Ros3, 4: Rodas3, 5: Rodas4]')
 parser.add_argument('-g', '--gpu', help='An integer value of the architecture [1: FERMI, 2: KEPLER, 3: MAXWELL, 4: PASCAL]')
 parser.add_argument('-s', '--smcl', help='smcl folder location, default: "../../smcl/"')
+parser.add_argument('-p', '--prec', help='An integer value of the precision [1: Single Precision, 2:Double Precision]')
 args = parser.parse_args()
 
 if args.smcl:
   smcl = args.smcl
 ros = args.ros
 gpu = args.gpu
+prec = args.prec
 
 
 # get the options for the architecture and the rosenbrock kernel
-ros,arch = print_menu_make_selection(ros,gpu)
+ros,arch,precision = print_menu_make_selection(ros,gpu,prec)
 
 
 ###############################################
 # Print generic information - header
 print("\n+===================================================================+ ")
-print("| KPP Fortran to CUDA praser - Copyright 2016 The Cyprus Institute  |")
+print("| KPP Fortran to CUDA praser - Copyright 2016- The Cyprus Institute  |")
 print("+===================================================================+ \n")
 
 print_warning()
@@ -1803,7 +1850,7 @@ generate_c2f_interface(file_messy_mecca_kpp)
 
 print("\n==> Step 13: Modifying specific.mk and Makefile")
 
-add_cuda_compilation(file_specific,file_makefile,arch)
+add_cuda_compilation(file_specific,file_makefile,arch,precision)
 
 
 ###############################################
