@@ -46,8 +46,8 @@ The following command line options are available to the user
 * `-m / --mem`  Choose y or n wheter you want to use the global memory version (reduced stack allocation and performance) or not
 * `-s / --smcl` MESSy smcl folder location, default: "../../smcl/"'
 * `--acc` Choose y or n whether you run the Interface via OpenACC on the GPU 
-* `--h211b` Choose y or n whether you want to use the advanced time step controller
-* `-p / --prec` An integer value of the precision [1: Single Precision, 2: Double Precisionv (default)]
+* `--h211b` Choose y or n whether you want to use the advanced time step controller (measure entire time step instead of duration of the last vector loop)
+* `-p / --prec` An integer value of the precision [1: Single Precision, 2: Double Precision (default)]
 
 ## 4. Running EMAC with GPU MECCA and improving performance:
 
