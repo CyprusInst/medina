@@ -3,11 +3,10 @@
 #
 # MECCA - KPP Fortran to CUDA parser
 #
-# Copyright 2016-2026 The Cyprus Institute
+# Copyright 2016-2020 The Cyprus Institute
 #
 # Developers: Michail Alvanos - m.alvanos@cyi.ac.cy
 #             Theodoros Christoudias - christoudias@cyi.ac.cy
-#             Kyriakos Sofokleous
 #             Giannis Ashiotis
 #
 #########################################################################################################
@@ -1595,7 +1594,7 @@ ros,arch,precision = print_menu_make_selection(ros,gpu,prec)
 ###############################################
 # Print generic information - header
 print("\n+===================================================================+ ")
-print("| KPP Fortran to CUDA praser - Copyright 2016- The Cyprus Institute  |")
+print("| KPP Fortran to CUDA praser - Copyright 2016 The Cyprus Institute  |")
 print("+===================================================================+ \n")
 
 print_warning()

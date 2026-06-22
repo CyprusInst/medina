@@ -1,17 +1,28 @@
 #!/usr/bin/env python3
+
 #########################################################################################################
 #
 # MECCA - KPP Fortran to CUDA parser
 #
-# Copyright 2016-2026 The Cyprus Institute
+# Copyright 2016-2025 The Cyprus Institute
 #
-# Developers: Michail Alvanos - m.alvanos@cyi.ac.cy
+# Developers: Michail Alvanos
 #             Theodoros Christoudias - christoudias@cyi.ac.cy
-#             Kyriakos Sofokleous
 #             Giannis Ashiotis
 #
+# with 2019- contributions from:
+#   F. Strunk - f.strunk@mpic.de
+#   S. Gromov - sergey.gromov@mpic.de
+#   Max Planck Institute for Chemistry, Mainz
+#   T. Kirfel - t.kirfel@fz-juelich.de
+#   Forschungszentrum Jülich, ICE-3
+#
+# Version "gamma": several changes to f2c script and build framework in MESSy
+#   - f2c interface is embedded into the kp4 template and enabled using CPP directive KPP_CUDA
+#   - original SMCL Makefile.m/specific.mk are not modified, optional .mk is used
+#   - CUDA code/makefile are placed into MECCA SMCL directory, symlinked to MESSy SMCL
+#
 #########################################################################################################
-
 
 import os
 import shutil
@@ -19,7 +30,26 @@ import re
 import subprocess, string
 import argparse
 
-smcl = "../../smcl/"
+#########################################################################################################
+#########################################################################################################
+
+# paths in distro
+messy_smcl = "../../smcl/"
+mecca_smcl = "../../mbm/caaba/mecca/smcl/"
+messy2mecca_smcl = "../mbm/caaba/mecca/smcl/"
+
+# prototypes
+cuda_pmod = "./source/kpp_integrate_cuda_prototype"
+proto_cu = cuda_pmod + ".cu"
+proto_mk = cuda_pmod + ".mk"
+
+# outputs
+cuda_mod = "messy_mecca_kpp-cuda"  # name of the CUDA module produced
+output_cu = cuda_mod + ".cu"       # source
+output_mk = cuda_mod + ".mk"       # -include makefile
+
+#########################################################################################################
+#########################################################################################################
 
 def remove_comments(source):
     print("Removing comments...")
@@ -33,7 +63,7 @@ def remove_comments(source):
         if "!" in line:
             if line[0] == "!":
                 continue
-            line = line[:line.find("!")-1]+"\n"
+            line = line[:line.find("!")]+"\n"
             line = line.strip()
         if (line != ''):
             out.append(line)
@@ -106,8 +136,6 @@ def decapitalize_vars(source,keys):
                     index = index + key_len
         fixed.append(line)
     return fixed
-
-
 
 def fix_power_op(source):
     operators = "*/+-<>=.,"
@@ -187,7 +215,7 @@ def fix_power_op(source):
                                     scientif = True
                                 elif scientif and i.lower() == "e":
                                     pass
-                                elif i in string.letters+"_": # if it's a_333_dp
+                                elif i in string.ascii_letters+"_": # if it's a_333_dp
                                     pos=-3
                                     for i in reversed(left[:-3]):
                                         if i not in var_name:
@@ -221,7 +249,7 @@ def fix_power_op(source):
                                     scientif = True
                                 elif scientif and i.lower() == "e":
                                     pass
-                                elif i in string.letters+"_": # if it's a_3
+                                elif i in string.ascii_letters+"_": # if it's a_3
                                     pos=0
                                     for i in reversed(left):
                                         if i not in var_name:
@@ -294,9 +322,9 @@ def fix_indices(source,keys):
 
 
 pass
-#########################################################################################################
-#########################################################################################################
 
+#########################################################################################################
+#########################################################################################################
 
 def split_rconst(source):
     lines = source[:]
@@ -310,6 +338,7 @@ def split_rconst(source):
         if line[0:6].lower() == "rconst":
             rconst_ops.append(line)
         elif ("=" in line) and (line.find("=") > 2):
+            line = line.replace(";","")
             rconst_decls.append(line)
     return rconst_ops,rconst_decls
 
@@ -359,10 +388,10 @@ def get_rconst_locals(source):
     rconst_locals=[]
     for line in source:
         if "=" in line:
-            if "IF" not in line:
                 rconst_locals.append(line.split("=",1)[0].strip())
+    # get a unique list of the rconst_local names 
+    rconst_locals = list(set(rconst_locals))
     return rconst_locals
-
 
 def create_rconst_init(source):
     rconst_init=[]
@@ -373,7 +402,7 @@ def create_rconst_init(source):
             rconst_init.append( eline )
     return rconst_init
 
-def generate_update_rconst(rconst_ops,rconst_decls,locals,rcint):
+def generate_update_rconst(rconst_ops,rconst_decls,locals,local_arrays,rcint):
     update_rconst = []
     rename_tmp = False
 
@@ -390,8 +419,8 @@ def generate_update_rconst(rconst_ops,rconst_decls,locals,rcint):
         rconst_decls = [w.replace('press', 'press_loc') for w in rconst_decls]
         rconst_ops = [w.replace('cair', 'cair_loc') for w in rconst_ops]
         rconst_decls = [w.replace('cair', 'cair_loc') for w in rconst_decls]
-
-
+    rconst_ops = [w.replace("(DISSOC)","[DISSOC]") for w in rconst_ops]
+    rconst_ops = [w.replace("(ASSOC)","[ASSOC]") for w in rconst_ops]
 
     update_rconst.append( \
     "__device__ void  update_rconst(const REAL * __restrict__ var, \n \
@@ -414,6 +443,8 @@ def generate_update_rconst(rconst_ops,rconst_decls,locals,rcint):
     for i in locals:
         line = line+" "+i+","
     line = line[:-1]+";\n"
+    for ent in local_arrays:
+        line = line.replace(ent,"*"+ent)
     update_rconst.append(line)
     update_rconst.append("\n")
     for line in rconst_decls:
@@ -429,28 +460,26 @@ def generate_update_rconst(rconst_ops,rconst_decls,locals,rcint):
     return update_rconst
 
 pass
+
 #########################################################################################################
 #########################################################################################################
 
 def generate_kppsolve(source):
     kppsolve=[]
     kppsolve.append("__device__ void kppSolve(const REAL * __restrict__ Ghimj, REAL * __restrict__ K, \n\
-                         const int istage, const int ros_S )")
+                         const int istage, const int ros_S, int VL_GLO)")
     kppsolve.append("{\n")
     kppsolve.append("    int index = blockIdx.x*blockDim.x+threadIdx.x;\n")
-    kppsolve.append("\n")
-    kppsolve.append("       K = &K[istage*NVAR];\n")
     kppsolve.append("\n")
     for line in source:
         line = line.strip()
         if line != "":
-            line = re.sub(r"Ghimj\(index,([0-9]+)\)",r"Ghimj[\1]",line)
-            line = re.sub(r"K\(index,istage,([0-9]+)\)",r"K[\1]",line)
             kppsolve.append("        "+line+";\n")
     kppsolve.append("}\n")
     return kppsolve
 
 pass
+
 #########################################################################################################
 #########################################################################################################
 
@@ -458,6 +487,7 @@ def generate_kppDecomp(source,NSPEC,lu_diag,lu_crow,lu_icol):
     kppDecomp = []
     kppDecomp.append("__device__ void kppDecomp(REAL *Ghimj, int VL_GLO)\n")
     kppDecomp.append("{\n")
+    kppDecomp.append("    int index = blockIdx.x*blockDim.x+threadIdx.x;\n")
     kppDecomp.append("    REAL a=0.0;\n")
 
     kppDecomp.append("\n")
@@ -469,14 +499,12 @@ def generate_kppDecomp(source,NSPEC,lu_diag,lu_crow,lu_icol):
     for line in source:
         line = line.strip()
         if line != "":
-            line = re.sub(r"Ghimj\(index,([0-9]+)\)",r"Ghimj[\1]",line)
             line = re.sub(r"W\(index,([0-9]+)\)",r"W_\1",line)
             kppDecomp.append("        "+line+";\n")
     kppDecomp.append("}\n")
     return kppDecomp
 
 pass
-
 
 #########################################################################################################
 #########################################################################################################
@@ -508,6 +536,7 @@ def generate_kppDecompIndirect(source,NSPEC,lu_diag,lu_crow,lu_icol):
     kppDecomp.append("\n")
     kppDecomp.append("__device__ void kppDecomp(REAL *Ghimj, const int VL_GLO)\n")
     kppDecomp.append("{\n")
+    kppDecomp.append("    int index = blockIdx.x*blockDim.x+threadIdx.x;\n")
     kppDecomp.append("    REAL a=0.0;\n")
     kppDecomp.append("    int k, kk, j, jj;\n")
     kppDecomp.append("    REAL W[" + str(NSPEC) +"];\n")
@@ -517,18 +546,18 @@ def generate_kppDecompIndirect(source,NSPEC,lu_diag,lu_crow,lu_icol):
     loop = "\n\
     for (k=0;k<NVAR;k++){ \n\
         for ( kk = LU_CROW[k]; kk< (LU_CROW[k+1]-1); kk++){ \n\
-            W[ LU_ICOL[kk] ]= Ghimj[kk];\n\
+            W[ LU_ICOL[kk] ]= Ghimj(index,kk);\n\
         }\n\
         for ( kk = LU_CROW[k]; kk < (LU_DIAG[k]- 1); k++){\n\
             j = LU_ICOL[kk];\n\
-            a = - W[j] / Ghimj[ LU_DIAG[j]];\n\
+            a = - W[j] / Ghimj(index, LU_DIAG[j]);\n\
             W[j] = - a;\n\
             for ( jj = LU_DIAG[j]+1; jj< (LU_CROW[j+ 1]- 1); jj++) {\n\
-                W[ LU_ICOL[jj] ] = W[ LU_ICOL[jj]]+  a*Ghimj[jj];\n\
+                W[ LU_ICOL[jj] ] = W[ LU_ICOL[jj]]+  a*Ghimj(index, jj);\n\
             }\n\
         }\n\
         for (kk = LU_CROW[k]; kk< (LU_CROW[k+ 1]- 1); kk++ ) {\n\
-            Ghimj[kk] = W[ LU_ICOL[kk]];\n\
+            Ghimj(index, kk) = W[ LU_ICOL[kk]];\n\
         }\n\
     }\n"
 
@@ -565,7 +594,6 @@ def generate_jac_sp(source,NBSIZE):
         line = line.strip()
         if line != "":
             line = re.sub(r"B\(index,([0-9]+)\)",r"B_\1",line)
-            line = re.sub(r"jcb\(index,([0-9]+)\)",r"jcb[\1]",line)
             line = re.sub(r"var\(index,([0-9]+)\)",r"var[\1]",line)
             line = re.sub(r"fix\(index,([0-9]+)\)",r"fix[\1]",line)
             jac_sp.append("        "+line+";\n")
@@ -573,8 +601,10 @@ def generate_jac_sp(source,NBSIZE):
     return jac_sp
 
 pass
+
 #########################################################################################################
 #########################################################################################################
+
 def generate_fun(source,NREACT):
     fun = []
     fun.append("__device__ void Fun(REAL *var, const REAL * __restrict__ fix, const REAL * __restrict__ rconst, REAL *varDot, int &Nfun, const int VL_GLO)")
@@ -603,10 +633,9 @@ def generate_fun(source,NREACT):
     return fun
 
 pass
+
 #########################################################################################################
 #########################################################################################################
-
-
 
 def find_LU_DIAG(file_in, NVAR):
     file_in.seek(0)
@@ -809,9 +838,9 @@ def generate_prepareMatrix(lu_diag):
     prepareMatrix.append("    \n")
     prepareMatrix.append("        ghinv = ONE/(direction*H*gam);\n")
     prepareMatrix.append("        for (int i=0; i<LU_NONZERO; i++)\n")
-    prepareMatrix.append("            Ghimj[i] = -jac0[i];\n\n")
+    prepareMatrix.append("            Ghimj(index,i) = -jac0(index,i);\n\n")
     for i in lu_diag:
-        prepareMatrix.append("        Ghimj["+i+"] += ghinv;\n")
+        prepareMatrix.append("        Ghimj(index,"+i+") += ghinv;\n")
     prepareMatrix.append("        ros_Decomp(Ghimj, Ndec, VL_GLO);\n")
     prepareMatrix.append("}\n")
     return prepareMatrix
@@ -821,7 +850,7 @@ pass
 
 #########################################################################################################
 
-def generate_special_ros(ros,inject_rconst):
+def generate_special_ros(ros,inject_rconst,h211b):
 
 
 
@@ -838,19 +867,21 @@ def generate_special_ros(ros,inject_rconst):
     else:
         return ''
 
-
     rosfunc = []
     source = file_ros.readlines()
     for line in source:
         if ( inject_rconst is True ):
-            line = line.replace("Jac_sp(var, fix, rconst, jac0, Njac, VL_GLO)","update_rconst(var, khet_st, khet_tr, jx, VL_GLO);   \n        Jac_sp(var, fix, rconst, jac0, Njac, VL_GLO)")
-            line = line.replace("Fun(varNew, fix, rconst, varNew, Nfun,VL_GLO);","update_rconst(var, khet_st, khet_tr, jx, VL_GLO);   \n            Fun(varNew, fix, rconst, varNew, Nfun,VL_GLO);")
-            line = line.replace("Fun(var, fix, rconst, Fcn0, Nfun, VL_GLO);","update_rconst(var, khet_st, khet_tr, jx, VL_GLO);   \n           Fun(var, fix, rconst, Fcn0, Nfun, VL_GLO);")
+            line = line.replace("Jac_sp(var, fix, rconst, jac0, Njac, VL_GLO)","update_rconst(var, khet_st, khet_tr, jx, rconst, temp_gpu, press_gpu, cair_gpu, VL_GLO);   \n        Jac_sp(var, fix, rconst, jac0, Njac, VL_GLO)")
+            line = line.replace("Fun(varNew, fix, rconst, varNew, Nfun,VL_GLO);","update_rconst(var, khet_st, khet_tr, jx, rconst, temp_gpu, press_gpu, cair_gpu, VL_GLO);   \n            Fun(varNew, fix, rconst, varNew, Nfun,VL_GLO);")
+            line = line.replace("Fun(var, fix, rconst, Fcn0, Nfun, VL_GLO);","update_rconst(var, khet_st, khet_tr, jx, rconst, temp_gpu, press_gpu, cair_gpu, VL_GLO);   \n           Fun(var, fix, rconst, Fcn0, Nfun, VL_GLO);")
+            line = line.replace("Fun(var, fix, rconst, dFdT, Nfun, VL_GLO);","update_rconst(var, khet_st, khet_tr, jx, temp_gpu, press_gpu, cair_gpu, VL_GLO);   \n       Fun(var, fix, rconst, dFdT, Nfun, VL_GLO);")
+        if h211b == True:
+            # replace old step size calculation by the H211b step size controller
+            if "fmin(FacMax" in line:
+                line = "Fac = pow((ONE/Err),1./(bb*kk))*pow((ONE/ErrOld),1./(bb*kk))*pow(FacOld,(-1./bb));\n"
+                line = line + "FacOld = Fac;\n"
+                line = line + "ErrOld = Err;\n"
         rosfunc.append(line)
-
-
-
-
     return rosfunc
 
 
@@ -862,12 +893,14 @@ def generate_special_ros_caller(ros):
 
     roscall = []
 
-    default_call = '#if defined(__SINGLEPREC) \n\
+    default_call ='''#if defined(__SINGLEPREC) \n\
      Rosenbrock<<<dimGrid,dimBlock>>>(d_conc_s, Tstart, Tend, d_rstatus_s, d_istatus, \n\
                     // values calculated from icntrl and rcntrl at host \n\
                     autonomous, vectorTol, UplimTol, method, Max_no_steps, \n\
-                    d_jac0_s, d_Ghimj_s,d_varNew_s, d_K_s, d_varErr_s, d_dFdT_s, d_Fcn0_s, d_var_s, d_fix_s, d_rconst_s,\n\
-                    Hmin, Hmax, Hstart, FacMin, FacMax, FacRej, FacSafe, roundoff,\n\
+                    #ifdef REDUCE\n\
+                    d_jac0, d_Ghimj,d_varNew, d_K, d_varErr, d_dFdT, d_Fcn0, d_var, d_fix,\n\
+                    #endif\n\
+                    Hmin, Hmax, Hstart, FacMin, FacMax, FacRej, FacSafe, roundoff, kk, bb,\n\
                     //  cuda global mem buffers               \n\
                     d_absTol_s, d_relTol_s, \n\
                     d_khet_st_s, d_khet_tr_s, d_jx_s, \n\
@@ -875,28 +908,32 @@ def generate_special_ros_caller(ros):
                     temp_gpu_s, press_gpu_s, cair_gpu_s, \n\
                     // extra - vector lenght and processor \n\
                     VL_GLO); \n\
-     #else \n\
-     Rosenbrock<<<dimGrid,dimBlock>>>(d_conc, Tstart, Tend, d_rstatus, d_istatus, \n\
-                    // values calculated from icntrl and rcntrl at host \n\
-                    autonomous, vectorTol, UplimTol, method, Max_no_steps, \n\
-                    d_jac0, d_Ghimj,d_varNew, d_K, d_varErr, d_dFdT, d_Fcn0, d_var, d_fix, d_rconst, \n\
-                    Hmin, Hmax, Hstart, FacMin, FacMax, FacRej, FacSafe, roundoff, \n\
-                    //  cuda global mem buffers             \n\
-                    d_absTol, d_relTol, \n\
+ #else \n
+                    Rosenbrock<<<dimGrid,dimBlock>>>(d_conc, Tstart, Tend, d_rstatus, d_istatus,\n\
+                    // values calculated from icntrl and rcntrl at host\n\
+                    autonomous, vectorTol, UplimTol, method, Max_no_steps,\n\
+                    #ifdef REDUCE\n\
+                    d_jac0, d_Ghimj,d_varNew, d_K, d_varErr, d_dFdT, d_Fcn0,\n\
+                    #endif\n\
+                    Hmin, Hmax, Hstart, FacMin, FacMax, FacRej, FacSafe, roundoff, kk, bb,\n\
+                    //  cuda global mem buffers              \n\
+                    d_absTol, d_relTol,   \n\
                     d_khet_st, d_khet_tr, d_jx, \n\
-                    // Global input arrays \n\
+                    // Global input arrays\n\
                     temp_gpu, press_gpu, cair_gpu, \n\
-                    // extra - vector lenght and processor \n\
+                    // extra - vector lenght and processor\n\
                     VL_GLO); \n\
-     #endif'
+#endif \n'''
 
     if ( ros == '2'):
         rosscall = '     switch (method){\n\
         case 1:\n\
             Rosenbrock_ros2<<<dimGrid,dimBlock>>>(d_conc, Tstart, Tend, d_rstatus, d_istatus,\n\
                     autonomous, vectorTol, UplimTol, Max_no_steps,\n\
-                    d_jac0, d_Ghimj,d_varNew, d_K, d_varErr, d_dFdT, d_Fcn0, d_var, d_fix, d_rconst,\n\
-                    Hmin, Hmax, Hstart, FacMin, FacMax, FacRej, FacSafe, roundoff,\n\
+                    #ifdef REDUCE\n\
+                    d_jac0, d_Ghimj,d_varNew, d_K, d_varErr, d_dFdT, d_Fcn0,\n\
+                    #endif\n\
+                    Hmin, Hmax, Hstart, FacMin, FacMax, FacRej, FacSafe, roundoff, kk, bb,\n\
                     d_absTol, d_relTol,\n\
                     d_khet_st, d_khet_tr, d_jx, \n\
                     temp_gpu, press_gpu, cair_gpu, \n\
@@ -910,14 +947,33 @@ def generate_special_ros_caller(ros):
     elif (ros == '3'):
         rosscall = '      switch (method){\n\
         case 2:\n\
+#if defined(__SINGLEPREC) \n\
+     Rosenbrock_ros3<<<dimGrid,dimBlock>>>(d_conc_s, Tstart, Tend, d_rstatus_s, d_istatus, \n\
+                    // values calculated from icntrl and rcntrl at host \n\
+                    autonomous, vectorTol, UplimTol, Max_no_steps, \n\
+                    #ifdef REDUCE\n\
+                    d_jac0, d_Ghimj,d_varNew, d_K, d_varErr, d_dFdT, d_Fcn0, d_var, d_fix,\n\
+                    #endif\n\
+                    Hmin, Hmax, Hstart, FacMin, FacMax, FacRej, FacSafe, roundoff, kk, bb,\n\
+                    //  cuda global mem buffers               \n\
+                    d_absTol_s, d_relTol_s, \n\
+                    d_khet_st_s, d_khet_tr_s, d_jx_s, \n\
+                    // Global input arrays \n\
+                    temp_gpu_s, press_gpu_s, cair_gpu_s, \n\
+                    // extra - vector lenght and processor \n\
+                    VL_GLO); \n\
+#else \n\
             Rosenbrock_ros3<<<dimGrid,dimBlock>>>(d_conc, Tstart, Tend, d_rstatus, d_istatus,\n\
                     autonomous, vectorTol, UplimTol, Max_no_steps,\n\
-                    d_jac0, d_Ghimj,d_varNew, d_K, d_varErr, d_dFdT, d_Fcn0, d_var, d_fix, d_rconst,\n\
-                    Hmin, Hmax, Hstart, FacMin, FacMax, FacRej, FacSafe, roundoff,\n\
+                    #ifdef REDUCE\n\
+                    d_jac0, d_Ghimj,d_varNew, d_K, d_varErr, d_dFdT, d_Fcn0,\n\
+                    #endif\n\
+                    Hmin, Hmax, Hstart, FacMin, FacMax, FacRej, FacSafe, roundoff, kk, bb,\n\
                     d_absTol, d_relTol,\n\
                     d_khet_st, d_khet_tr, d_jx, \n\
                     temp_gpu, press_gpu, cair_gpu, \n\
                     VL_GLO);\n\
+#endif\n\
             break;\n\
         default: \n' + default_call + '\n\
         \n\
@@ -930,8 +986,10 @@ def generate_special_ros_caller(ros):
         case 3:\n\
             Rosenbrock_ros4<<<dimGrid,dimBlock>>>(d_conc, Tstart, Tend, d_rstatus, d_istatus,\n\
                     autonomous, vectorTol, UplimTol, Max_no_steps,\n\
-                    d_jac0, d_Ghimj,d_varNew, d_K, d_varErr, d_dFdT, d_Fcn0, d_var, d_fix, d_rconst,\n\
-                    Hmin, Hmax, Hstart, FacMin, FacMax, FacRej, FacSafe, roundoff,\n\
+                    #ifdef REDUCE\n\
+                    d_jac0, d_Ghimj,d_varNew, d_K, d_varErr, d_dFdT, d_Fcn0,\n\
+                    #endif\n\
+                    Hmin, Hmax, Hstart, FacMin, FacMax, FacRej, FacSafe, roundoff, kk, bb,\n\
                     d_absTol, d_relTol,\n\
                     d_khet_st, d_khet_tr, d_jx, \n\
                     temp_gpu, press_gpu, cair_gpu, \n\
@@ -948,8 +1006,10 @@ def generate_special_ros_caller(ros):
         case 4:\n\
             Rosenbrock_rodas3<<<dimGrid,dimBlock>>>(d_conc, Tstart, Tend, d_rstatus, d_istatus,\n\
                     autonomous, vectorTol, UplimTol, Max_no_steps,\n\
-                    d_jac0, d_Ghimj,d_varNew, d_K, d_varErr, d_dFdT, d_Fcn0, d_var, d_fix, d_rconst,\n\
-                    Hmin, Hmax, Hstart, FacMin, FacMax, FacRej, FacSafe, roundoff,\n\
+                    #ifdef REDUCE\n\
+                    d_jac0, d_Ghimj,d_varNew, d_K, d_varErr, d_dFdT, d_Fcn0,\n\
+                    #endif\n\
+                    Hmin, Hmax, Hstart, FacMin, FacMax, FacRej, FacSafe, roundoff, kk, bb,\n\
                     d_absTol, d_relTol,\n\
                     d_khet_st, d_khet_tr, d_jx, \n\
                     temp_gpu, press_gpu, cair_gpu, \n\
@@ -966,8 +1026,10 @@ def generate_special_ros_caller(ros):
         case 5:\n\
             Rosenbrock_rodas4<<<dimGrid,dimBlock>>>(d_conc, Tstart, Tend, d_rstatus, d_istatus,\n\
                     autonomous, vectorTol, UplimTol, Max_no_steps,\n\
-                    d_jac0, d_Ghimj,d_varNew, d_K, d_varErr, d_dFdT, d_Fcn0, d_var, d_fix, d_rconst,\n\
-                    Hmin, Hmax, Hstart, FacMin, FacMax, FacRej, FacSafe, roundoff,\n\
+                    #ifdef REDUCE\n\
+                    d_jac0, d_Ghimj,d_varNew, d_K, d_varErr, d_dFdT, d_Fcn0,\n\
+                    #endif\n\
+                    Hmin, Hmax, Hstart, FacMin, FacMax, FacRej, FacSafe, roundoff, kk, bb,\n\
                     d_absTol, d_relTol,\n\
                     d_khet_st, d_khet_tr, d_jx, \n\
                     temp_gpu, press_gpu, cair_gpu, \n\
@@ -1087,11 +1149,11 @@ def generate_definitions_global(file_in,var_prefix):
             if "interface" in line:
                 break
 
-            allvars = re.findall(r'(' + var_name  + '(\w+)(\s+)?)=\s+(([0-9,E,\-,.])+(\s+)?)[,&,\n]',line)
-
+#            allvars = re.findall(r'(' + var_name  + '(\w+)(\s+)?)=\s+(([0-9,E,\-,.])+(\s+)?)[,&,\n]',line)
+            allvars = re.findall(r'(' + var_name  + '(\w+)(\s+)?)=\s+(([0-9Ee\-.])+)',line)
             if ( len(allvars)  > 0):
                 for definition in allvars:
-                    out.append("#define "+definition[0]+"  ("+str(definition[3])+")\n")
+                    out.append("#define "+definition[0]+"  ("+str(definition[3].strip())+")\n")
 
     return out
 
@@ -1099,11 +1161,11 @@ pass
 #########################################################################################################
 #########################################################################################################
 
-def gen_kpp_integrate_cuda(file_prototype, source_cuda, inject_rconst):
-    file_prototype.seek(0)
-    lines_prototype = file_prototype.readlines()
-    file_out = open(smcl + "messy_mecca_kpp_acc.cu","w")
-    for line in lines_prototype:
+def gen_kpp_integrate_cuda(proto, output, source_cuda, inject_rconst):
+    file_proto = open(proto,"r")
+    lines_proto = file_proto.readlines()
+    file_out = open(output,"w")
+    for line in lines_proto:
         if "=#=#=#=#=#=#=#=#=#=#=" in line:
             chunk_name = line.replace("=#=#=#=#=#=#=#=#=#=#=","").replace("=#=#=#=#=#=#=#=#=#=#=","").strip().lower()
             chunk = source_cuda[chunk_name]
@@ -1112,20 +1174,13 @@ def gen_kpp_integrate_cuda(file_prototype, source_cuda, inject_rconst):
                     chunk_line = remove_precision_qualifiers(chunk_line)
                     file_out.write(chunk_line)
         else:
-
             if ( inject_rconst is True ):
-                line = line.replace("Jac_sp(var, fix, rconst, jac0, Njac, VL_GLO)","update_rconst(var, khet_st, khet_tr, jx, VL_GLO);   \n        Jac_sp(var, fix, rconst, jac0, Njac, VL_GLO)")
-                line = line.replace("Fun(varNew, fix, rconst, varNew, Nfun,VL_GLO);","update_rconst(var, khet_st, khet_tr, jx, VL_GLO);   \n            Fun(varNew, fix, rconst, varNew, Nfun,VL_GLO);")
-                line = line.replace("Fun(var, fix, rconst, Fcn0, Nfun, VL_GLO);","update_rconst(var, khet_st, khet_tr, jx, VL_GLO);   \n           Fun(var, fix, rconst, Fcn0, Nfun, VL_GLO);")
-                line = line.replace("Fun(var, fix, rconst, dFdT, Nfun, VL_GLO);","update_rconst(var, khet_st, khet_tr, jx, VL_GLO);   \n       Fun(var, fix, rconst, dFdT, Nfun, VL_GLO);")
-
-
-
+                line = line.replace("Jac_sp(var, fix, rconst, jac0, Njac, VL_GLO)","update_rconst(var, khet_st, khet_tr, jx, rconst, temp_gpu, press_gpu, cair_gpu, VL_GLO);   \n        Jac_sp(var, fix, rconst, jac0, Njac, VL_GLO)")
+                line = line.replace("Fun(varNew, fix, rconst, varNew, Nfun,VL_GLO);","update_rconst(var, khet_st, khet_tr, jx, rconst, temp_gpu, press_gpu, cair_gpu, VL_GLO);   \n            Fun(varNew, fix, rconst, varNew, Nfun,VL_GLO);")
+                line = line.replace("Fun(var, fix, rconst, Fcn0, Nfun, VL_GLO);","update_rconst(var, khet_st, khet_tr, jx, rconst, temp_gpu, press_gpu, cair_gpu, VL_GLO);   \n           Fun(var, fix, rconst, Fcn0, Nfun, VL_GLO);")
+                line = line.replace("Fun(var, fix, rconst, dFdT, Nfun, VL_GLO);","update_rconst(var, khet_st, khet_tr, jx, rconst, temp_gpu, press_gpu, cair_gpu, VL_GLO);   \n       Fun(var, fix, rconst, dFdT, Nfun, VL_GLO);")
             file_out.write(line)
     file_out.close()
-
-
-
 
 pass
 #########################################################################################################
@@ -1215,7 +1270,7 @@ def generate_c2f_interface(file_in):
             else:
                 print("Something went wrong in generate c2f_interface")
                 return
-    file_out = open(smcl + "messy_mecca_kpp.f90","w")
+    file_out = open(mecca_smcl + "messy_mecca_kpp.f90","w")
     for i in range(start):
         file_out.write(source[i])
     out = "SUBROUTINE kpp_integrate (time_step_len,Conc,ierrf,xNacc,xNrej,istatus,l_debug,PE) \n\
@@ -1362,15 +1417,11 @@ pass
 #########################################################################################################
 #########################################################################################################
 
-def add_cuda_compilation(file_specific,file_makefile,arch,precision):
+def add_cuda_compilation(file_specific,file_makefile,arch):
 
     file_makefile.seek(0)
-    if (precision.__eq__("Single Precision")):
-           out = "\nmessy_mecca_kpp_acc.o: messy_mecca_kpp_acc.cu specific.mk \n\
-\tnvcc  -v  --ptxas-options=-v  " + arch +"  --ftz=false --prec-div=true --prec-sqrt=true --fmad=false -D__SINGLEPREC --expt-relaxed-constexpr  -O3  -g   -c  $<" 
-    else:
-            out = "\nmessy_mecca_kpp_acc.o: messy_mecca_kpp_acc.cu specific.mk \n\
-\tnvcc  -v  --ptxas-options=-v  " + arch +"  --ftz=false --prec-div=true --prec-sqrt=true --fmad=false -O3  -g   -c  $<"
+    out = "\nmessy_mecca_kpp_acc.o: messy_mecca_kpp_acc.cu specific.mk \n\
+\tnvcc  -v  --ptxas-options=-v  " + arch +"  --ftz=false --prec-div=true --prec-sqrt=true --fmad=false    -O3  -g   -c  $<"
     file_specific.write(out)
 
 
@@ -1394,11 +1445,30 @@ def add_cuda_compilation(file_specific,file_makefile,arch,precision):
 
     temp.close()
     os.rename('__temp', smcl + "Makefile.m")
-
-
-
 pass
 
+#########################################################################################################
+#########################################################################################################
+
+def parse_cuda_mk_template(template,output,arch,global_mem,open_acc,single, flags=""):
+
+    if (flags == ""):
+        flags = "--ptxas-options=-v --ftz=false --prec-div=true --prec-sqrt=true --fmad=false"
+    if global_mem == True:
+        flags = flags + " -DREDUCE"
+    if open_acc == True:
+        flags = flags + " -D_OPEN_ACC"
+    if single == True:
+        flags = flags + " -D__SINGLEPREC"
+    temp = open(output, 'wb')
+    for line in open(template, 'r'):
+        # substiutte <CUDA_ARCH>
+        line = line.replace('<CUDA_ARCH>',arch);
+        # substitute <NVCCFLAGS>
+        line = line.replace('<NVCCFLAGS>',flags);
+        temp.write(line.encode())
+    temp.close()
+pass
 
 #########################################################################################################
 #########################################################################################################
@@ -1412,14 +1482,14 @@ def get_transformation_flags():
     inject_rconst = False
 
     # Check if kpp created indirect indexing
-    if ('LU_CROW(k+1)' in open(smcl + "messy_mecca_kpp.f90").read()) or ('LU_CROW(k+ 1)' in open(smcl + "messy_mecca_kpp.f90").read()):
+    if ('LU_CROW(k+1)' in open(mecca_smcl + "messy_mecca_kpp.f90").read()) or ('LU_CROW(k+ 1)' in open(mecca_smcl + "messy_mecca_kpp.f90").read()):
         print("Warning: Can't convert indirect indexing of file.")
         print("--> Change the decomp in the conf file or modify the output file.\n")
         indirect = True
 
 
     # Check if kpp created vector length chemistry
-    if '= C(1:VL,:)' in open(smcl + "messy_mecca_kpp.f90").read():
+    if '= C(1:VL,:)' in open(mecca_smcl + "messy_mecca_kpp.f90").read():
         print("Can't convert vectorized version of file.")
         print("--> Change the rosenbrock_vec to reosenbrock_mz in the conf file.\n")
         print("Exiting... \n")
@@ -1428,14 +1498,14 @@ def get_transformation_flags():
 
 
     # Check if kpp created the multiple files version.
-    if ( os.path.isfile(smcl + "messy_mecca_kpp_global.f90") == True             and
-         os.path.isfile(smcl + "messy_mecca_kpp_jacobian.f90") == True
+    if ( os.path.isfile(mecca_smcl + "messy_mecca_kpp_global.f90") == True             and
+         os.path.isfile(mecca_smcl + "messy_mecca_kpp_jacobian.f90") == True
         ):
         print("Multifile version detected!")
         multifile = True
 
     if (multifile == True):
-        file_messy_mecca_kpp = open(smcl + "messy_mecca_kpp_linearalgebra.f90","r")
+        file_messy_mecca_kpp = open(mecca_smcl + "messy_mecca_kpp_linearalgebra.f90","r")
         subroutines = find_subroutines(file_messy_mecca_kpp, ["KppDecomp","KppDecompCmplx"])
         infile = " ".join(subroutines["kppdecomp"])
         if 'LU_ICOL(kk)' in infile:
@@ -1443,13 +1513,13 @@ def get_transformation_flags():
             indirect = True
 
     if (multifile == True):
-        file_messy_mecca_kpp = open(smcl + "messy_mecca_kpp_integrator.f90","r")
+        file_messy_mecca_kpp = open(mecca_smcl + "messy_mecca_kpp_integrator.f90","r")
         lines = file_messy_mecca_kpp.readlines()
         infile = " ".join(lines)
         if '!     CALL Update_RCONST()' not in infile:
             inject_rconst = True;
     else:
-        file_messy_mecca_kpp = open(smcl + "messy_mecca_kpp.f90","r")
+        file_messy_mecca_kpp = open(mecca_smcl + "messy_mecca_kpp.f90","r")
         lines = file_messy_mecca_kpp.readlines()
         infile = " ".join(lines)
         if '!     CALL Update_RCONST()' not in infile:
@@ -1464,7 +1534,7 @@ pass
 
 def print_warning():
     print('\033[1m' + "\n####################################################################################################")
-    print("## WARNING!! BETA VERSION ! PLEASE REPORT TO PACKAGE MAINTAINERS ANY BUGS OR UNEXPECTED BEHAVIOUR.")
+    print("## WARNING!! TEST VERSION ! PLEASE REPORT TO PACKAGE MAINTAINERS ANY BUGS OR UNEXPECTED BEHAVIOUR.")
     print("####################################################################################################\n")
     print('\033[0m')
 pass
@@ -1472,43 +1542,41 @@ pass
 #########################################################################################################
 #########################################################################################################
 
-
 def select_architecture(ans):
     if ans=="1":
-        arch = "--gpu-architecture=compute_20 -maxrregcount=128 "
+        arch = "--gpu-architecture=sm_20 -maxrregcount=128 "
     elif ans=="2":
-        arch = "--gpu-architecture=compute_35"
+        arch = "--gpu-architecture=sm_35"
     elif ans=="3":
-        arch = "--gpu-architecture=compute_50"
+        arch = "--gpu-architecture=sm_52"
     elif ans=="4":
-        arch = "--gpu-architecture=compute_60"
+        arch = "--gpu-architecture=sm_61"
     elif ans=="5":
-        arch = "--gpu-architecture=compute_70"
+        arch = "--gpu-architecture=sm_70"
+    elif ans=="6":
+        arch = "--gpu-architecture=sm_75"
+    elif ans=="7":
+        arch = "--gpu-architecture=sm_80"
+    elif ans=="8":
+        arch = "--gpu-architecture=sm_90"
     else:
-        arch = "--gpu-architecture=compute_20"
-
+        arch = "--gpu-architecture=compute_52"
     return arch
 
-def select_precision(ans):
-    if ans=="1":
-        precision = "Single Precision"
-    else:
-        precision = "Double Precision"
-   
-    return precision
-
-def print_menu_make_selection(ros,gpu,prec):
-
+def print_menu_make_selection(ros, h211b, gpu, mem, acc, prec):
     if gpu is None:
         print ("""
 
-    Select CUDA architecture (1-5): 
+    Select CUDA architecture (1-8):
 
-                1. CUDA 2.0 ( FERMI GPU architecture   )
-                2. CUDA 3.5 ( KEPLER GPU architecture  )
-                3. CUDA 5.2 ( MAXWELL GPU architecture )
-                4. CUDA 6.0 ( PASCAL GPU architecture  )
-                5. CUDA 7.0 ( VOLTA GPU architecture   )
+                1. CUDA 2.0 ( FERMI architecture | CUDA 3-8    | best compatibility      )
+                2. CUDA 3.5 ( KEPLER or later    | CUDA 5-11   |                         )
+                3. CUDA 5.2 ( MAXWELL or later   | CUDA 6.5-11 | Quadro M2+ / Tesla M    )
+                4. CUDA 6.1 ( PASCAL or later    | CUDA 8-11   | Quadro P / Tesla P      )
+                5. CUDA 7.0 ( VOLTA or later     | CUDA 9-11   | Quadro GV / Tesla V100  )
+                6. CUDA 7.5 ( TURING or later    | CUDA 10-11  | Quadro RTX/T / Tesla T4 )
+                7. CUDA 8.0 ( AMPERE or later    | CUDA 11     | Tesla A100              )
+                8. CUDA 9.0 ( HOPPER or later    | CUDA 12     | Hopper H100             )
 
                 """)
 
@@ -1539,22 +1607,86 @@ Select Rosenbrock solver (1-6):
     if prec is None:
         print ("""
 
-Select Precision: 
+Select Precision:
 
             1. Single Precision
             2. Double Precision
 
             """)
-
         prec = input("Option (Default 2): ")
 
-    if prec not in ['1','2']:
+    if prec == '1':
+        prec_txt = "single"
+    else:
+        prec_txt = "double"
         prec = "2"
 
-    precision = select_precision(prec)
-    
-    print("Selected options: " + arch + " with ros: "  + ros + " and precision: " + precision + "\n")
-    return ros,arch,precision
+    if h211b is None:
+        print ("""
+
+Do you want to use the advanced h211b step size controller:
+
+        y or Y (YES)
+        n or N (NO)
+
+        """)
+        h211b = input("Option (Default N): ")
+    if h211b not in ["Y","y","N","n"]:
+        h211b = "N"
+    if mem is None:
+        print("""
+
+    Do you want to use the global memory variant:
+
+            y or Y global memory implementation
+            n or N standard local memory implementation             
+
+            """)
+        mem = input("Option (Default N): ")
+
+    if mem not in ["Y","y","N","n"]:
+        mem = 'N'
+    if acc is None:
+        print("""
+
+    Do you run your model interface on GPU via OpenACC?
+
+        y or Y (YES)
+        n or N (NO)
+
+        """)
+        acc = input("Option (Default N): ")
+    if acc not in ["Y","y","N","n"]:
+        acc = 'N'
+
+    print("Selected options: " + arch + " with ros: "  + ros + " and reduced mem.: "+ mem + "in "+ prec_txt + "precison. \n")
+    if acc == "y" or acc == "Y":
+        print("Running with OpenACC enabled!")
+    if h211b == "y" or h211b == "Y":
+        print("Generating advanced time step controller")
+    return ros, arch, mem, acc, h211b, prec
+
+### mz_sg_20191106+: CPU source code management
+### Check source file and optionally save/restore it to/from backup
+def check_source(src, backup=False):
+    suff = ".orig"
+  # checking for backup
+    if ( backup and os.path.isfile(src+suff) ):
+        print ("restoring "+src+" from "+src+suff)
+        os.remove(src)
+        shutil.copyfile(src+suff, src)
+  # checking source
+    if ( not os.path.isfile(src) ):
+        print ('source "'+src+'" is not found')
+        return False
+  # making backup
+    if ( backup and not os.path.isfile(src+suff) ):
+        print ('backing up source "'+src+'" to "'+src+suff+'"')
+        shutil.copyfile(src, src+suff)
+    return True
+pass
+### mz_sg_20191106-
+
 
 #########################################################################################################
 #########################################################################################################
@@ -1569,7 +1701,9 @@ multifile = False
 vectorize = False
 indirect  = False
 inject_rconst = False
-
+global_mem = False
+open_acc = False
+single = False
 
 ###############################################
 
@@ -1577,65 +1711,70 @@ inject_rconst = False
 parser = argparse.ArgumentParser(description='MEDINA: FORTRAN to CUDA KPP for EMAC Preprocessor.')
 parser.add_argument('-r', '--ros', help='An integer value of the Rosenbrock solver produced [1: all (selected at runtime), 2: Ros2, 3: Ros3, 4: Rodas3, 5: Rodas4]')
 parser.add_argument('-g', '--gpu', help='An integer value of the architecture [1: FERMI, 2: KEPLER, 3: MAXWELL, 4: PASCAL]')
+parser.add_argument('-m', '--mem', help="Choose y or n wheter you want to use the global memory version or not")
+parser.add_argument("--acc", help="Choose y or n whether you run the Interface via OpenACC on the GPU or not.")
+parser.add_argument("--h211b", help="Choose y or n w whether you want to use the advanced time step controller.")
+parser.add_argument('-p', '--prec', help='An integer value of the precision [1: Single Precision, 2: Double Precision]')
+
 parser.add_argument('-s', '--smcl', help='smcl folder location, default: "../../smcl/"')
-parser.add_argument('-p', '--prec', help='An integer value of the precision [1: Single Precision, 2:Double Precision]')
 args = parser.parse_args()
 
 if args.smcl:
   smcl = args.smcl
 ros = args.ros
 gpu = args.gpu
+mem = args.mem
+acc = args.acc
+h211b = args.h211b
 prec = args.prec
 
-
 # get the options for the architecture and the rosenbrock kernel
-ros,arch,precision = print_menu_make_selection(ros,gpu,prec)
+ros, arch, mem, acc, h211b, prec = print_menu_make_selection(ros, gpu, mem, acc, h211b, prec)
 
+if mem == "y" or mem == "Y":
+    global_mem=True
+if acc == "y" or acc == "Y":
+    open_acc = True
+if h211b == "y" or h211b == "Y":
+    h211b = True
+if prec == "1":
+    single = True
 
 ###############################################
 # Print generic information - header
-print("\n+===================================================================+ ")
-print("| KPP Fortran to CUDA praser - Copyright 2016- The Cyprus Institute  |")
-print("+===================================================================+ \n")
+print("\n+==========================================================================+ ")
+print("| KPP Fortran to CUDA praser - Copyright 2016 - 2025 The Cyprus Institute  |")
+print("+==========================================================================+ \n")
 
 print_warning()
 
-# First check if the files exist
-# In the future, we will check also  the path of the binary
+###############################################
+print("==> Step 0: Clean-up, check sources & save/restore to/from the backup.")
 
-if ( os.path.isfile(smcl + "messy_mecca_kpp.f90") == False             or
-     os.path.isfile(smcl + "messy_cmn_photol_mem.f90") == False        or
-     os.path.isfile(smcl + "messy_main_constants_mem.f90") == False    or
-     os.path.isfile("./source/kpp_integrate_cuda_prototype.cu") == False or
-     os.path.isfile(smcl + "specific.mk") == False or
-     os.path.isfile(smcl + "Makefile.m") == False
+# clean-up if previous attempt failed/exists
+for target in [output_cu, output_mk]:
+    if os.path.isfile(mecca_smcl+target): os.remove(mecca_smcl+target)
+    if os.path.islink(messy_smcl+target): os.unlink(messy_smcl+target)
+
+# check sources
+if ( not check_source(mecca_smcl+"messy_mecca_kpp.f90") or
+     not check_source(messy_smcl+"messy_cmn_photol_mem.f90") or
+     not check_source(messy_smcl+"messy_main_constants_mem.f90") or
+     not check_source(proto_cu) or
+     not check_source(proto_mk)
      ):
     print("Can't find one or more files. \n")
-    print("--> Run the script at ./messy/util directory of messy. \n")
+    print("--> Run the script at ./messy/util/medina directory of messy. \n")
     print("Exiting... \n")
     exit(-1)
 
+# open sources
+file_messy_mecca_kpp          = open(mecca_smcl+"messy_mecca_kpp.f90","r");
+file_messy_cmn_photol_mem     = open(messy_smcl+"messy_cmn_photol_mem.f90","r");
+file_messy_main_constants_mem = open(messy_smcl+"messy_main_constants_mem.f90");
 
+# Check kpp-created code
 multifile, vectorize, indirect, inject_rconst = get_transformation_flags()
-
-
-###############################################
-### Backup files
-print("==> Step 0: Backup files.\n")
-
-shutil.copyfile(smcl + "specific.mk", smcl + "specific.mk.old")
-shutil.copyfile(smcl + "Makefile.m", smcl + "Makefile.m.old")
-shutil.copyfile(smcl + "messy_mecca_kpp.f90", smcl + "messy_mecca_kpp.f90.old")
-os.remove(smcl + "messy_mecca_kpp.f90")
-
-
-# Open the files
-file_messy_mecca_kpp = open(smcl + "messy_mecca_kpp.f90.old","r")
-file_messy_cmn_photol_mem = open(smcl + "messy_cmn_photol_mem.f90","r")
-file_messy_main_constants_mem = open(smcl + "messy_main_constants_mem.f90","r")
-file_prototype = open("./source/kpp_integrate_cuda_prototype.cu","r")
-file_specific = open(smcl + "specific.mk","a")
-file_makefile = open(smcl + "Makefile.m","r+")
 
 
 ###############################################
@@ -1666,7 +1805,6 @@ if (multifile == True):
     file_messy = open("messy_mecca_kpp_initialize.f90","r")
     subroutines6 = find_subroutines(file_messy, ["Initialize"])
 
-
     subroutines = dict(  list(subroutines1.items()) + list(subroutines2.items()) + list(subroutines3.items()) + list(subroutines4.items()) + list(subroutines5.items())  + list(subroutines6.items()) )
 
 else:
@@ -1686,22 +1824,21 @@ source_cuda["defines_ind_1"] = generate_define_indices_one_line(file_messy_cmn_p
 
 
 if (multifile == True):
-    file_messy_mecca_kpp_global = open("messy_mecca_kpp_global.f90","r")
-    file_messy_mecca_kpp_parameters = open("messy_mecca_kpp_parameters.f90","r")
+    file_messy_mecca_kpp_global = open(smcl_mecca+"messy_mecca_kpp_global.f90","r")
+    file_messy_mecca_kpp_parameters = open(smcl_mecca+"messy_mecca_kpp_parameters.f90","r")
     source_cuda["defines_vars_2"] = generate_define_vars(file_messy_mecca_kpp_parameters,["NSPEC","NVAR","NFIX","NREACT","LU_NONZERO","NBSIZE"])
     source_cuda["defines_vars_2"].append(generate_define_NBSIZE(subroutines["jac_sp"]))
     source_cuda["defines_ind_2"] = generate_define_indices_many_lines(file_messy_mecca_kpp_parameters,"ind")
     source_cuda["defines_ind_3"] = generate_define_indices_one_line(file_messy_mecca_kpp_global,"ihs")
     source_cuda["defines_ind_4"] = generate_define_indices_one_line(file_messy_mecca_kpp_global,"iht")
-    source_cuda["defines_ind_5"] = generate_definitions_global(file_messy_mecca_kpp_global ,["k_","f_","a_"])
+    source_cuda["defines_ind_5"] = generate_definitions_global(file_messy_mecca_kpp_global ,["k_","f_","a_","r_"])
 else:
     source_cuda["defines_vars_2"] = generate_define_vars(file_messy_mecca_kpp,["NSPEC","NVAR","NFIX","NREACT","LU_NONZERO","NBSIZE"])
     source_cuda["defines_vars_2"].append(generate_define_NBSIZE(subroutines["jac_sp"]))
     source_cuda["defines_ind_2"] = generate_define_indices_many_lines(file_messy_mecca_kpp,"ind")
     source_cuda["defines_ind_3"] = generate_define_indices_one_line(file_messy_mecca_kpp,"ihs")
     source_cuda["defines_ind_4"] = generate_define_indices_one_line(file_messy_mecca_kpp,"iht")
-    source_cuda["defines_ind_5"] = generate_definitions_global(file_messy_mecca_kpp,["k_","f_","a_"])
-
+    source_cuda["defines_ind_5"] = generate_definitions_global(file_messy_mecca_kpp,["k_","f_","a_","r_"])
 
 
 # read the values
@@ -1732,7 +1869,7 @@ source = subroutines['update_rconst']
 source = remove_comments(source)
 source = strip_and_unroll_lines(source)
 source = fix_power_op(source)
-source = decapitalize_vars(source,["rconst","jx","khet_st","khet_tr","cair","press","temp","exp","log","max","min"])
+source = decapitalize_vars(source,["rconst","jx","khet_st","khet_tr","cair","press","temp","exp","log","max","min", "k_md", "uef", "k_op_n2", "k_op_o2", "k_n2_o", "k_3rd_jpl_activation", "k_siv_h202", "k_limited", "k_arr"])
 
 # These are fixes with multifile: jx and khet are 2d
 if (multifile == True):
@@ -1747,13 +1884,12 @@ if (multifile == True):
 source = rconst_preprocessor_1(source)
 rconst_ops,rconst_decls = split_rconst(source)
 flocals = get_rconst_locals(rconst_decls)
-
 source = subroutines['initialize']
 source = remove_comments(source)
 source = decapitalize_vars(source,["rconst"])
 rinit  = create_rconst_init(source)
-
-source_cuda["update_rconst"] = generate_update_rconst(rconst_ops,rconst_decls,flocals,rinit)
+local_arrays = {"k_NO2_O3P": "2", "k_CH3CO_O2": "2"}
+source_cuda["update_rconst"] = generate_update_rconst(rconst_ops,rconst_decls,flocals,local_arrays,rinit)
 
 ###############################################
 print("\n==> Step 4: Parsing function kppsolve.")
@@ -1786,9 +1922,6 @@ else:
     source = fix_indices(source,[("W","W"),("JVS","Ghimj")])
     source_cuda["kppdecomp"] = generate_kppDecomp(source,NSPEC,lu_diag,lu_crow,lu_icol)
 
-
-
-
 ###############################################
 print("\n==> Step 6: Parsing function jac_sp.")
 
@@ -1799,7 +1932,6 @@ source = fix_power_op(source)
 source = split_beta(source, "B(")
 source = fix_indices(source,[("B","B"),("RCT","rconst"),("F","fix"),("V","var"),("JVS","jcb")])
 source_cuda["jac_sp"] = generate_jac_sp(source, NBSIZE)
-
 
 ###############################################
 print("\n==> Step 7: Parsing function fun.")
@@ -1815,50 +1947,42 @@ source_cuda["fun"] = generate_fun(source,NREACT)
 ###############################################
 print("\n==> Step 8: Parsing and preparing diagonal.")
 
-
-source_cuda["ros_preparematrix"] = generate_prepareMatrix(lu_diag)
+# generate_prepareMatrix needs only the first NVAR indices from the lu_diag list, otherwise there will be an out of bounds memory write 
+# in the parsed function, because of an index greater than LU_NONZERO in lu_diag.  
+source_cuda["ros_preparematrix"] = generate_prepareMatrix(lu_diag[:NVAR])
 
 ###############################################
 print("\n==> Step 9: Generating customized solver.")
 
-source_cuda["special_ros"] = generate_special_ros(ros,inject_rconst)
-
-
+source_cuda["special_ros"] = generate_special_ros(ros, inject_rconst, h211b)
 
 ###############################################
 print("\n==> Step 10: Generating calls to customized solver.")
 
 source_cuda["call_kernel"] = generate_special_ros_caller(ros)
 
+###############################################
+
+print("\n==> Step 11: Generating "+cuda_mod+" source/makefile in "+mecca_smcl)
+
+gen_kpp_integrate_cuda(proto_cu, mecca_smcl+output_cu, source_cuda, inject_rconst)
+parse_cuda_mk_template(proto_mk, mecca_smcl+output_mk, arch, global_mem, open_acc, single)
+
 
 
 ###############################################
+print("\n==> Step 12: Linking SMCL code from MECCA to MESSy")
 
-print("\n==> Step 11: Generating kpp_integrate_cuda.")
-
-gen_kpp_integrate_cuda(file_prototype, source_cuda, inject_rconst)
-
-
+for target in [output_cu, output_mk]:
+    os.symlink(messy2mecca_smcl+target, messy_smcl+target)
 
 ###############################################
 
-print("\n==> Step 12: Generating messy_mecca_kpp replacement.")
-generate_c2f_interface(file_messy_mecca_kpp)
-
-###############################################
-
-
-print("\n==> Step 13: Modifying specific.mk and Makefile")
-
-add_cuda_compilation(file_specific,file_makefile,arch,precision)
-
-
-###############################################
-
-print("\n##################################################################\n")
-print("Don't forget to add the '-lcudart' in the linking options during configuration")
-print("For example, it can be added to the SPEC_NETCDF_LIB variable:")
-print("SPEC_NETCDF_LIB = -L$EBROOTNETCDFMINFORTRAN/lib -lnetcdff   -lcudart  -lstdc++")
+print("\n################################################################\n")
+print("Please check whether you have configured the distribution with")
+print("--with-CUDA=$CUDAROOT option, where $CUDAROOT points to the")
+print("desired CUDA version installation. The configuration script will")
+print("automatically adjust necessary linking flags (via $CUDA_LIB).")
 
 
 print_warning()

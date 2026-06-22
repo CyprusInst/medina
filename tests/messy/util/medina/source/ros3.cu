@@ -1,29 +1,29 @@
 
-__device__  static  int ros_Integrator_ros4(REAL * __restrict__ var, const REAL * __restrict__ fix, const REAL Tstart, const REAL Tend, REAL &T,
+__device__ static int ros_Integrator_ros3(REAL * __restrict__ var, const REAL * __restrict__ fix, const REAL Tstart, const REAL Tend, REAL &T,
         //  Integration parameters
         const int autonomous, const int vectorTol, const int Max_no_steps, 
-        const REAL roundoff, const REAL Hmin, const REAL Hmax, const REAL Hstart, REAL &Hexit,
-        const REAL FacMin, const REAL FacMax, const REAL FacRej, const REAL FacSafe, const REAL kk, const REAL bb,
+        const REAL roundoff, const REAL Hmin, const REAL Hmax, const REAL Hstart, REAL &Hexit, 
+        const REAL FacMin, const REAL FacMax, const REAL FacRej, const REAL FacSafe, 
         //  Status parameters
         int &Nfun, int &Njac, int &Nstp, int &Nacc, int &Nrej, int &Ndec, int &Nsol, int &Nsng,
         //  cuda global mem buffers              
-        REAL * __restrict__ rconst,  const REAL * __restrict__ absTol, const REAL * __restrict__ relTol, REAL * __restrict__ varNew, REAL * __restrict__ Fcn0,
+        const REAL * __restrict__ rconst,  const REAL * __restrict__ absTol, const REAL * __restrict__ relTol, REAL * __restrict__ varNew, REAL * __restrict__ Fcn0, 
         REAL * __restrict__ K, REAL * __restrict__ dFdT, REAL * __restrict__ jac0, REAL * __restrict__ Ghimj, REAL * __restrict__ varErr,
         // for update_rconst
         const REAL * __restrict__ khet_st, const REAL * __restrict__ khet_tr,
-        const REAL * __restrict__ jx, const REAL * __restrict__ temp_gpu, const REAL * __restrict__ press_gpu, const REAL * __restrict__ cair_gpu,
+        const REAL * __restrict__ jx,
         // VL_GLO
         const int VL_GLO)
 {
     int index = blockIdx.x*blockDim.x+threadIdx.x;
 
-    REAL H, Hnew, HC, HG, Fac; // Tau - not used
-    REAL Err, ErrOld = 1., FacOld = 1.; //*varErr;
+    REAL H, Hnew, HC, HC0,HC1, HG, Fac; // Tau - not used
+    REAL Err; //*varErr;
     int direction;
     int rejectLastH, rejectMoreH;
     const REAL DELTAMIN = 1.0E-5;
 
-    const int ros_S = 4;
+    const int ros_S = 3;
 
     //   ~~~>  Initial preparations
     T = Tstart;
@@ -60,11 +60,11 @@ __device__  static  int ros_Integrator_ros4(REAL * __restrict__ var, const REAL 
         H = fmin(H,fabs(Tend-T));
 
         //   ~~~>   Compute the function at current time
-        Fun(var, fix, rconst, Fcn0, Nfun, VL_GLO);	/// VAR READ - Fcn0 Write
+        Fun(var, fix, rconst, Fcn0, Nfun, VL_GLO);
 
         //   ~~~>  Compute the function derivative with respect to T
         if (!autonomous)
-            ros_FunTimeDerivative(T, roundoff, var, fix, rconst, dFdT, Fcn0, Nfun, khet_st, khet_tr, jx, temp_gpu, press_gpu, cair_gpu,  VL_GLO); /// VAR READ - fcn0 read
+            ros_FunTimeDerivative(T, roundoff, var, fix, rconst, dFdT, Fcn0, Nfun, khet_st, khet_tr, jx,  VL_GLO); /// VAR READ - fcn0 read
 
         //   ~~~>   Compute the Jacobian at current time
         Jac_sp(var, fix, rconst, jac0, Njac, VL_GLO);   /// VAR READ 
@@ -73,135 +73,73 @@ __device__  static  int ros_Integrator_ros4(REAL * __restrict__ var, const REAL 
         // UntilAccepted: 
         while(1)
         {
+            ros_PrepareMatrix(H, direction, 0.43586652150845899941601945119356E+00 , jac0, Ghimj, Nsng, Ndec, VL_GLO);
 
-        //{ 0.5728200000000000E+00, -0.1769193891319233E+01, 0.7592633437920482E+00, -0.1049021087100450E+00,0,0},  /* ros_Gamma */
-            ros_PrepareMatrix(H, direction, 0.5728200000000000E+00, jac0, Ghimj, Nsng, Ndec, VL_GLO);
-            //   ~~~>   Compute the stages
-            // Stage: 
-            //for (int istage=0; istage < ros_S; istage++)
-            {
-                int istage = 0;
-		for (int i=0; i<NVAR; i++)		
-			K(index,istage,i)  = Fcn0(index,i);
-
-                if ((!autonomous))
-                {
-                    HG = direction*H*(0.5728200000000000E+00);
-                    for (int i=0; i<NVAR; i++){
-                        K(index,istage,i) += dFdT(index,i)*HG;
-		     }
-                }
-                ros_Solve(Ghimj, K, Nsol, istage, ros_S, VL_GLO);
-            } // Stage
-
-
-            {
-                int istage=1;
-                for (int i=0; i<NVAR; i++){		
-                    varNew(index,i) = K(index,0,i)*(2.0)  + var(index,i);
-                }
-
-                Fun(varNew, fix, rconst, varNew, Nfun,VL_GLO); // FCN <- varNew / not overlap 
-
-                HC = (-0.7137615036412310E+01)/(direction*H);
+            { // istage=0
                 for (int i=0; i<NVAR; i++){
-                    K(index,1,i) = K(index,0,i)*HC + varNew(index,i);
+                    K(index,0,i)  = Fcn0(index,i);				// FCN0 Read
                 }
 
                 if ((!autonomous))
                 {
-                    HG = direction*H*(-0.1769193891319233E+01);
+                    HG = direction*H*0.43586652150845899941601945119356E+00;
                     for (int i=0; i<NVAR; i++){
-                        K(index,istage,i) += dFdT(index,i)*HG;
+                        K(index,0,i) += dFdT(index,i)*HG;
 		     }
                 }
-
-                ros_Solve(Ghimj, K, Nsol, istage, ros_S, VL_GLO);
+                ros_Solve(Ghimj, K, Nsol, 0, ros_S);
             } // Stage
 
-
-            {
-                int istage=2;
-
+            {   // istage = 1
                 for (int i=0; i<NVAR; i++){		
-                    varNew(index,i) = K(index,0,i)*0.1867943637803922E+01  + var(index,i);
-                    varNew(index,i) = K(index,1,i)*0.2344449711399156E+00  + varNew(index,i);
+                    varNew(index,i) = K(index,0,i)  + var(index,i);
                 }
                 Fun(varNew, fix, rconst, varNew, Nfun,VL_GLO); // FCN <- varNew / not overlap 
-
-
-                REAL HC0 = 0.2580708087951457E+01/(direction*H);
-                REAL HC1 = 0.6515950076447975E+00/(direction*H);
-
-                for (int i=0; i<NVAR; i++){		
-                    K(index,istage,i)  = varNew(index,i);
-                    K(index,istage,i) += K(index,0,i)*HC0;
-                    K(index,istage,i) += K(index,1,i)*HC1;
+                HC = -0.10156171083877702091975600115545E+01/(direction*H);
+                for (int i=0; i<NVAR; i++){
+                    REAL tmp = K(index,0,i);
+                    K(index,1,i) = tmp*HC + varNew(index,i);
                 }
-
-                if ((!autonomous) )
+                if ((!autonomous))
                 {
-                    HG = direction*H*(0.7592633437920482E+00);
+                    HG = direction*H*0.24291996454816804366592249683314E+00;
                     for (int i=0; i<NVAR; i++){
-                        K(index,istage,i) += dFdT(index,i)*HG;
+                        K(index,1,i) += dFdT(index,i)*HG;
 		     }
                 }
-                ros_Solve(Ghimj, K, Nsol, istage, ros_S, VL_GLO);
+		//	   R   ,RW, RW,  R,        R 
+                ros_Solve(Ghimj, K, Nsol, 1, ros_S);
             } // Stage
 
-       
             {
-                int istage=3;
+                int istage = 2;
 
-		REAL HC0 = (-0.2137148994382534E+01)/(direction*H);
-		REAL HC1 = (-0.3214669691237626E+00)/(direction*H);
-		REAL HC2 = (-0.6949742501781779E+00)/(direction*H);
+                HC0 = 0.40759956452537699824805835358067E+01/(direction*H);
+                HC1 = 0.92076794298330791242156818474003E+01/(direction*H);
 
-                for (int i=0; i<NVAR; i++){	
-                    K(index,istage,i)  = varNew(index,i);
-                    K(index,istage,i) += K(index,0,i)*HC0;
-                    K(index,istage,i) += K(index,1,i)*HC1;
-                    K(index,istage,i) += K(index,2,i)*HC2;
+                for (int i=0; i<NVAR; i++){
+                    K(index,2,i) = K(index,1,i)*HC1 +   K(index,0,i)*HC0 +  varNew(index,i);
                 }
-
                 if ((!autonomous) )
                 {
-                    HG = direction*H*(-0.1049021087100450E+00);
+                    HG = direction*H*0.21851380027664058511513169485832E+01;
                     for (int i=0; i<NVAR; i++){
                         K(index,istage,i) += dFdT(index,i)*HG;
 		     }
                 }
-                ros_Solve(Ghimj, K, Nsol, istage, ros_S, VL_GLO);
+                ros_Solve(Ghimj, K, Nsol, istage, ros_S);
             } // Stage
-
-
-
-        //{ -0.2815431932141155E+00, -0.7276199124938920E-01, -0.1082196201495311E+00, -0.1093502252409163E+01, 0, 0}, /* ros_E */
 
             //  ~~~>  Compute the new solution
 	    for (int i=0; i<NVAR; i++){
-		    REAL tmpNew ;
-		    REAL tmpErr ;
-
-                    tmpNew  = K(index,0,i)*(0.2255570073418735E+01) + var(index,i);
-                    tmpNew += K(index,1,i)*(0.2870493262186792E+00);
-                    tmpNew += K(index,2,i)*(0.4353179431840180E+00);
-                    tmpNew += K(index,3,i)*(0.1093502252409163E+01);
-
-                    tmpErr  = K(index,0,i)*(-0.2815431932141155E+00);
-                    tmpErr += K(index,1,i)*(-0.7276199124938920E-01);
-                    tmpErr += K(index,2,i)*(-0.1082196201495311E+00);
-                    tmpErr += K(index,3,i)*(-0.1093502252409163E+01);
-
-		    varNew(index,i) = tmpNew;			// varNew is killed
-		    varErr(index,i) = tmpErr;
+                    varNew(index,i) = K(index,0,i)   + K(index,1,i)*0.61697947043828245592553615689730E+01 + K(index,2,i)*(-0.42772256543218573326238373806514) + var(index,i) ;
+                    varErr(index,i) = K(index,0,i)/2 + K(index,1,i)*(-0.29079558716805469821718236208017E+01) + K(index,2,i)*(0.22354069897811569627360909276199);
 	    }
 
-            Err = ros_ErrorNorm(var, varNew, varErr, absTol, relTol, vectorTol);   /// VAR-varNew READ
-
+            Err = ros_ErrorNorm(var, varNew, varErr, absTol, relTol, vectorTol);   
 
 //  ~~~> New step size is bounded by FacMin <= Hnew/H <= FacMax
-            Fac  = fmin(FacMax,fmax(FacMin,FacSafe/pow(Err,ONE/4.0)));
+            Fac  = fmin(FacMax,fmax(FacMin,FacSafe/pow(Err,ONE/3.0)));
             Hnew = H*Fac;
 
 //  ~~~>  Check the error magnitude and adjust step size
@@ -239,15 +177,13 @@ __device__  static  int ros_Integrator_ros4(REAL * __restrict__ var, const REAL 
 }
 
 __global__ 
-void Rosenbrock_ros4(REAL * __restrict__ conc, const REAL Tstart, const REAL Tend, REAL * __restrict__ rstatus, int * __restrict__ istatus,
+void Rosenbrock_ros3(REAL * __restrict__ conc, const REAL Tstart, const REAL Tend, REAL * __restrict__ rstatus, int * __restrict__ istatus,
                 const int autonomous, const int vectorTol, const int UplimTol, const int Max_no_steps,
-#ifdef REDUCE
-                REAL * __restrict__ d_jac0, REAL * __restrict__ d_Ghimj, REAL * __restrict__ d_varNew, REAL * __restrict__ d_K, REAL * __restrict__ d_varErr,REAL * __restrict__ d_dFdT ,REAL * __restrict__ d_Fcn0,
-#endif
-                const REAL Hmin, const REAL Hmax, const REAL Hstart, const REAL FacMin, const REAL FacMax, const REAL FacRej, const REAL FacSafe, const REAL roundoff, const REAL kk, const REAL bb,
+                REAL * __restrict__ d_jac0, REAL * __restrict__ d_Ghimj, REAL * __restrict__ d_varNew, REAL * __restrict__ d_K, REAL * __restrict__ d_varErr,REAL * __restrict__ d_dFdT ,REAL * __restrict__ d_Fcn0, REAL * __restrict__ d_var, REAL * __restrict__ d_fix, REAL * __restrict__ d_rconst,
+                const REAL Hmin, const REAL Hmax, const REAL Hstart, const REAL FacMin, const REAL FacMax, const REAL FacRej, const REAL FacSafe, const REAL roundoff,
                 const REAL * __restrict__ absTol, const REAL * __restrict__ relTol,
-                const REAL * __restrict__ khet_st, const REAL * __restrict__ khet_tr,
-                const REAL * __restrict__ jx,
+    	        const REAL * __restrict__ khet_st, const REAL * __restrict__ khet_tr,
+		const REAL * __restrict__ jx,
                 const REAL * __restrict__ temp_gpu,
                 const REAL * __restrict__ press_gpu,
                 const REAL * __restrict__ cair_gpu,
@@ -263,43 +199,18 @@ void Rosenbrock_ros4(REAL * __restrict__ conc, const REAL Tstart, const REAL Ten
      *  optimize accesses. 
      *
      */
-
-#ifdef REDUCE
-    REAL *Ghimj  = d_Ghimj;
-    REAL *K      = d_K;
+    REAL *Ghimj  = &d_Ghimj[index*LU_NONZERO];    
+    REAL *K      = &d_K[index*NVAR*3];
     REAL *varNew = &d_varNew[index*NVAR];
     REAL *Fcn0   = &d_Fcn0[index*NVAR];
     REAL *dFdT   = &d_dFdT[index*NVAR];
-    REAL *jac0   = d_jac0;
+    REAL *jac0   = &d_jac0[index*LU_NONZERO];
     REAL *varErr = &d_varErr[index*NVAR];
     REAL *var    = &d_var[index*NSPEC];
     REAL *fix    = &d_fix[index*NFIX];
     REAL *rconst = &d_rconst[index*NREACT];
-#else
-    REAL varNew_stack[NVAR];
-    REAL varErr_stack[NVAR];
-    REAL Fcn0_stack[NVAR];
-    REAL jac0_stack[LU_NONZERO];
-    REAL dFdT_stack[NVAR];
-    REAL Ghimj_stack[LU_NONZERO];
-    REAL K_stack[4*NVAR];
 
-    /* Allocated in stack */
-    REAL *Ghimj  = Ghimj_stack;
-    REAL *K      = K_stack;
-    REAL *varNew = varNew_stack;
-    REAL *Fcn0   = Fcn0_stack;
-    REAL *dFdT   = dFdT_stack;
-    REAL *jac0   = jac0_stack;
-    REAL *varErr = varErr_stack;
-#endif
-    /* Temporary arrays allocated in stack */
-    REAL var_stack[NSPEC];
-    REAL fix_stack[NFIX];
-    REAL rconst_stack[NREACT];
-    REAL *var    = var_stack;
-    REAL *fix    = fix_stack;
-    REAL *rconst = rconst_stack;
+    const int method = 2;
 
     if (index < VL_GLO)
     {
@@ -333,18 +244,18 @@ void Rosenbrock_ros4(REAL * __restrict__ conc, const REAL Tstart, const REAL Ten
 
         update_rconst(var, khet_st, khet_tr, jx, rconst, temp_gpu, press_gpu, cair_gpu, VL_GLO); 
 
-        ros_Integrator_ros4(var, fix, Tstart, Tend, Texit,
+        ros_Integrator_ros3(var, fix, Tstart, Tend, Texit,
                 //  Integration parameters
                 autonomous, vectorTol, Max_no_steps, 
                 roundoff, Hmin, Hmax, Hstart, Hexit, 
-                FacMin, FacMax, FacRej, FacSafe, kk, bb,
+                FacMin, FacMax, FacRej, FacSafe,
                 //  Status parameters
                 Nfun, Njac, Nstp, Nacc, Nrej, Ndec, Nsol, Nsng,
                 //  cuda global mem buffers              
                 rconst, absTol, relTol, varNew, Fcn0,  
                 K, dFdT, jac0, Ghimj,  varErr, 
                 // For update rconst
-                khet_st, khet_tr, jx, temp_gpu, press_gpu, cair_gpu,
+                khet_st, khet_tr, jx,
                 VL_GLO
                 );
 
