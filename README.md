@@ -20,19 +20,6 @@ To enable using the GPUs the file:
 have to be available in the messy/util/medina directory. 
 No additional changes are required. 
 
-### Command-line options
-
-The following command line options are available to the user
-(and can be used for example to run `xmedina.py` in batch mode):
-
-* `-r / --ros`  An integer value of the Rosenbrock solver produced [1: all (select at runtime), 2: Ros2, 3: Ros3, 4: Rodas3, 5: Rodas4]
-* `-g / --gpu`  An integer value of the architecture [1: FERMI, 2: KEPLER, 3: MAXWELL, 4: PASCAL]
-* `-m / --mem`  Choose y or n wheter you want to use the global memory version (reduced stack allocation and performance) or not
-* `-s / --smcl` MESSy smcl folder location, default: "../../smcl/"'
-* `--acc` Choose y or n whether you run the Interface via OpenACC on the GPU 
-* `--h211b` Choose y or n whether you want to use the advanced time step controller
-* `-p / --prec` An integer value of the precision [1: Single Precision, 2: Double Precisionv (default)]
-
 ## 3. Running the MECCA Fortran to CUDA source-to-source pre-processor:
 
 You have to enter the ./messy/util/medina directory to execute the
@@ -48,6 +35,19 @@ the following files to be in place:
  
 If any of these files is missing or not configured as in the MESSy release,
 the preprocessor will stop with an error message.
+
+### Command-line options
+
+The following command line options are available to the user
+(and can be used for example to run `xmedina.py` in batch mode):
+
+* `-r / --ros`  An integer value of the Rosenbrock solver produced [1: all (select at runtime), 2: Ros2, 3: Ros3, 4: Rodas3, 5: Rodas4]
+* `-g / --gpu`  An integer value of the architecture [1: FERMI, 2: KEPLER, 3: MAXWELL, 4: PASCAL]
+* `-m / --mem`  Choose y or n wheter you want to use the global memory version (reduced stack allocation and performance) or not
+* `-s / --smcl` MESSy smcl folder location, default: "../../smcl/"'
+* `--acc` Choose y or n whether you run the Interface via OpenACC on the GPU 
+* `--h211b` Choose y or n whether you want to use the advanced time step controller
+* `-p / --prec` An integer value of the precision [1: Single Precision, 2: Double Precisionv (default)]
 
 ## 4. Running EMAC with GPU MECCA and improving performance:
 
